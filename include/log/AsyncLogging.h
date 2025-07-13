@@ -7,8 +7,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include "../base/Buffer.h"
+#include "Buffer.h"
 #include "LogFile.h"
+#include "noncopyable.h"
 
 /**
  * @brief 异步日志类，实现高性能的日志后端
@@ -18,7 +19,7 @@
  * 2. 专门的后台线程负责将缓冲区中的日志写入磁盘
  * 3. 双缓冲机制最小化了锁竞争，提高了并发性能
  */
-class AsyncLogging
+class AsyncLogging : public noncopyable
 {
 public:
     /**
@@ -70,12 +71,14 @@ private:
     const std::string m_basename; // 日志文件名
     const off_t m_rollSize;       // 日志文件滚动大小
 
-    std::thread m_thread;           // 后台线程
-    std::mutex m_mutex;             // 互斥锁，保护缓冲区访问
-    std::condition_variable m_cond; // 条件变量，用于通知后台线程
+    std::thread m_thread;           // 后台写入线程
+    std::mutex m_mutex;             // 互斥锁，保护缓冲区
+    std::condition_variable m_cond; // 条件变量，用于线程同步
 
-    // 双缓冲区设计
-    BufferPtr m_currentBuffer; // 当前缓冲区，前端写入
-    BufferPtr m_nextBuffer;    // 备用缓冲区
-    BufferVector m_buffers;    // 待写入文件的已填满缓冲区队列
+    // 当前缓冲区，前端线程写入
+    BufferPtr m_currentBuffer;
+    // 备用缓冲区，当当前缓冲区满时使用
+    BufferPtr m_nextBuffer;
+    // 待写入文件的已满缓冲区列表
+    BufferVector m_buffers;
 };

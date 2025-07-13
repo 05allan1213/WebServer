@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LogEvent.h"
+#include "noncopyable.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -14,7 +15,7 @@ class Logger;
  * 不同的子类(如DateTimeFormatItem, LevelFormatItem等)
  * 分别实现了不同的格式化策略，处理不同的格式占位符(%d, %p等)
  */
-class FormatItem
+class FormatItem : public noncopyable
 {
 public:
     using ptr = std::shared_ptr<FormatItem>;
@@ -37,7 +38,7 @@ public:
  * 并将每个格式项(如%d, %p等)解析为对应的FormatItem对象。
  * 在格式化时，依次调用各FormatItem的format方法，完成完整日志的格式化。
  */
-class LogFormatter
+class LogFormatter : public noncopyable
 {
 public:
     // 使用智能指针管理LogFormatter对象

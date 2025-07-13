@@ -2,6 +2,7 @@
 
 #include "Logger.h"
 #include "LogAppender.h"
+#include "noncopyable.h"
 #include <string>
 #include <map>
 #include <memory>
@@ -14,7 +15,7 @@
  * 它维护一个Logger实例的映射表，并提供创建、获取Logger的接口。
  * 同时，它实现了日志器的层次化管理，支持从配置文件加载配置。
  */
-class LogManager
+class LogManager : public noncopyable
 {
 public:
     /**
@@ -53,24 +54,14 @@ private:
      */
     LogManager();
 
-    /**
-     * @brief 删除拷贝构造函数
-     */
-    LogManager(const LogManager &) = delete;
-
-    /**
-     * @brief 删除赋值运算符
-     */
-    LogManager &operator=(const LogManager &) = delete;
-
 private:
     /// 互斥锁，保证线程安全
     std::mutex m_mutex;
     /// 根日志器，是所有日志器的父级
     Logger::ptr m_root;
-    /// 日志器映射表，通过名称索引
+    /// 日志器映射表，按名称存储所有Logger实例
     std::map<std::string, Logger::ptr> m_loggers;
-    /// 是否已完成初始化
+    /// 是否已初始化标志
     bool m_initialized = false;
 };
 

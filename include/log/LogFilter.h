@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LogEvent.h"
+#include "noncopyable.h"
 #include <memory>
 #include <string>
 #include <functional>
@@ -13,7 +14,7 @@
  * LogFilter允许基于不同条件过滤日志，如内容匹配、级别、文件名等。
  * 使用策略模式设计，可灵活扩展不同的过滤规则。
  */
-class LogFilter
+class LogFilter : public noncopyable
 {
 public:
     using ptr = std::shared_ptr<LogFilter>;
@@ -72,13 +73,14 @@ public:
      * @param exclude true表示匹配则过滤，false表示匹配则保留
      */
     RegexFilter(const std::string &pattern, bool exclude = true)
-        : m_pattern(pattern), m_regex(pattern), m_exclude(exclude) {}
+        : m_regex(pattern), m_exclude(exclude) {}
 
     bool filter(LogEvent::ptr event) override
     {
         std::string content = event->getStringStream().str();
         bool match = std::regex_search(content, m_regex);
-        return match == m_exclude; // 如果m_exclude为true，匹配则过滤；否则匹配则保留
+        // 如果m_exclude为true，匹配则过滤；否则匹配则保留
+        return m_exclude ? match : !match;
     }
 
     std::string getName() const override
@@ -87,9 +89,8 @@ public:
     }
 
 private:
-    std::string m_pattern;
-    std::regex m_regex;
-    bool m_exclude;
+    std::regex m_regex; // 正则表达式
+    bool m_exclude;     // true表示匹配则过滤，false表示匹配则保留
 };
 
 /**
@@ -130,51 +131,51 @@ class CompositeFilter : public LogFilter
 {
 public:
     /**
-     * @brief 默认构造函数
-     * @param all_match true表示需要全部过滤器都通过，false表示任一过滤器通过即可
+     * @brief 构造函数
+     * @param all true表示所有子过滤器都通过才通过(AND关系)，
+     *            false表示任一子过滤器通过就通过(OR关系)
      */
-    CompositeFilter(bool all_match = false) : m_all_match(all_match) {}
+    CompositeFilter(bool all = true) : m_all(all) {}
 
     /**
      * @brief 添加子过滤器
-     * @param filter 要添加的过滤器
+     * @param filter 过滤器指针
      */
     void addFilter(LogFilter::ptr filter)
     {
         m_filters.push_back(filter);
     }
 
+    /**
+     * @brief 清空所有子过滤器
+     */
+    void clearFilters()
+    {
+        m_filters.clear();
+    }
+
     bool filter(LogEvent::ptr event) override
     {
+        // 没有子过滤器时不过滤
         if (m_filters.empty())
         {
-            return false; // 没有过滤器则不过滤
-        }
-
-        if (m_all_match)
-        {
-            // 全部匹配模式：所有过滤器都返回true才过滤
-            for (auto &f : m_filters)
-            {
-                if (!f->filter(event))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-        else
-        {
-            // 任一匹配模式：任一过滤器返回true就过滤
-            for (auto &f : m_filters)
-            {
-                if (f->filter(event))
-                {
-                    return true;
-                }
-            }
             return false;
         }
+
+        // 根据m_all决定使用AND还是OR逻辑
+        for (auto &filter : m_filters)
+        {
+            bool result = filter->filter(event);
+            // AND逻辑：任一子过滤器返回true(过滤)，则整体返回true(过滤)
+            // OR逻辑：任一子过滤器返回false(不过滤)，则整体返回false(不过滤)
+            if (m_all ? result : !result)
+            {
+                return m_all;
+            }
+        }
+        // AND逻辑：所有子过滤器都返回false(不过滤)，则整体返回false(不过滤)
+        // OR逻辑：所有子过滤器都返回true(过滤)，则整体返回true(过滤)
+        return !m_all;
     }
 
     std::string getName() const override
@@ -183,8 +184,8 @@ public:
     }
 
 private:
-    std::vector<LogFilter::ptr> m_filters;
-    bool m_all_match; // true为AND关系，false为OR关系
+    std::vector<LogFilter::ptr> m_filters; // 子过滤器列表
+    bool m_all;                            // true表示AND关系，false表示OR关系
 };
 
 /**

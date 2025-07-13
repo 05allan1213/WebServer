@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <mutex>
+#include "noncopyable.h"
 
 /**
  * @brief 日志文件类，负责文件写入、滚动及刷新
@@ -14,7 +15,7 @@
  *
  * 它作为AsyncLogging的底层支持，处理真正的文件I/O操作
  */
-class LogFile
+class LogFile : public noncopyable
 {
 public:
     using ptr = std::shared_ptr<LogFile>;
@@ -72,16 +73,12 @@ private:
     const off_t m_rollSize;       // 日志文件滚动阈值(字节)
     const int m_flushInterval;    // 刷新间隔(秒)
 
-    int m_count; // 写入计数器
+    int m_count; // 写入计数器，用于判断是否需要滚动
 
     std::unique_ptr<std::mutex> m_mutex; // 互斥锁，保护文件操作
-    time_t m_startOfPeriod;              // 当前日志周期的开始时间
+    time_t m_startOfPeriod;              // 当前日志周期的开始时间(天)
     time_t m_lastRoll;                   // 上次滚动的时间
     time_t m_lastFlush;                  // 上次刷新的时间
 
-    FILE *m_file; // 文件指针，使用C风格文件操作性能更高
-
-    // 文件写入缓冲区，提高写入性能
-    const static int kBuffer_size = 64 * 1024; // 64KB缓冲区
-    char m_buffer[kBuffer_size];
+    FILE *m_file; // 文件指针
 };
