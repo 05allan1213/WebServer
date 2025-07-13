@@ -273,6 +273,7 @@ FileLogAppender::~FileLogAppender()
  * 2. 同步模式：直接写入文件流
  *
  * 函数包含完善的错误处理，在文件写入失败时会尝试重新打开文件。
+ * 高级别日志（ERROR、FATAL）会立即刷新，确保重要信息不丢失。
  */
 void FileLogAppender::log(Logger::ptr logger, LogEvent::ptr event)
 {
@@ -298,12 +299,42 @@ void FileLogAppender::log(Logger::ptr logger, LogEvent::ptr event)
             if (g_asyncOutputFunc)
             {
                 asyncOutput(msg.c_str(), msg.length());
+
+                // 对于ERROR和FATAL级别的日志，强制刷新
+                if (event->getLevel() >= Level::ERROR)
+                {
+                    // 这里不能直接调用flush，因为异步写入是由另一个线程处理的
+                    // 但可以在异步输出函数中处理高优先级日志的立即刷新
+                    // 这里我们添加一个特殊标记，让异步线程知道这是高优先级日志
+                    std::string flushMarker = "##FLUSH_NOW##\n";
+                    asyncOutput(flushMarker.c_str(), flushMarker.length());
+                }
             }
             // 如果未设置异步输出，则直接写入文件（同步模式）
             else if (m_filestream.is_open())
             {
                 m_filestream << msg;
-                m_filestream.flush(); // 立即刷新缓冲区，确保写入磁盘
+
+                // 对于ERROR和FATAL级别的日志，立即刷新
+                if (event->getLevel() >= Level::ERROR)
+                {
+                    m_filestream.flush();
+                }
+                else
+                {
+                    // 对于其他级别，根据时间间隔刷新
+                    static time_t lastFlushTime = 0;
+                    time_t now = time(nullptr);
+
+                    // WARN级别每2秒刷新一次，其他级别每5秒刷新一次
+                    int flushInterval = (event->getLevel() == Level::WARN) ? 2 : 5;
+
+                    if (now - lastFlushTime >= flushInterval)
+                    {
+                        m_filestream.flush();
+                        lastFlushTime = now;
+                    }
+                }
 
                 // 检查写入是否成功
                 if (m_filestream.fail())
@@ -325,7 +356,12 @@ void FileLogAppender::log(Logger::ptr logger, LogEvent::ptr event)
                 {
                     // 重新打开成功，写入日志
                     m_filestream << msg;
-                    m_filestream.flush();
+
+                    // 对于ERROR和FATAL级别的日志，立即刷新
+                    if (event->getLevel() >= Level::ERROR)
+                    {
+                        m_filestream.flush();
+                    }
 
                     // 再次检查写入是否成功
                     if (m_filestream.fail())

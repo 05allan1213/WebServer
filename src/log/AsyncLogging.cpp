@@ -76,12 +76,33 @@ void AsyncLogging::append(const char *logline, int len)
     }
 }
 
+// 从日志内容中提取日志级别
+Level extractLogLevel(const char *logline, int len)
+{
+    // 简单的日志级别提取，假设日志格式中包含如 "[INFO]" 这样的标记
+    // 实际实现可能需要根据你的日志格式调整
+    std::string content(logline, len);
+    if (content.find("[FATAL]") != std::string::npos)
+        return Level::FATAL;
+    if (content.find("[ERROR]") != std::string::npos)
+        return Level::ERROR;
+    if (content.find("[WARN]") != std::string::npos)
+        return Level::WARN;
+    if (content.find("[INFO]") != std::string::npos)
+        return Level::INFO;
+    if (content.find("[DEBUG]") != std::string::npos)
+        return Level::DEBUG;
+
+    return Level::INFO; // 默认级别
+}
+
 void AsyncLogging::threadFunc()
 {
     assert(m_running == true);
 
     // 创建LogFile对象负责实际的文件操作
-    LogFile output(m_basename, m_rollSize, 1);
+    // 启用自适应刷新和分级刷新策略
+    LogFile output(m_basename, m_rollSize, m_flushInterval, true, true);
 
     // 准备两个空闲缓冲区，用于与前端交换
     BufferPtr newBuffer1(new Buffer);
@@ -130,7 +151,13 @@ void AsyncLogging::threadFunc()
         // 将所有缓冲区的数据写入日志文件
         for (const auto &buffer : buffersToWrite)
         {
-            output.append(buffer->peek(), buffer->readableBytes());
+            // 提取日志级别并传递给append方法
+            const char *data = buffer->peek();
+            size_t len = buffer->readableBytes();
+            Level level = extractLogLevel(data, len);
+
+            // 使用新的带级别参数的append方法
+            output.append(data, len, level);
         }
 
         // 只保留两个缓冲区用于复用，减少内存分配
@@ -158,7 +185,7 @@ void AsyncLogging::threadFunc()
         }
 
         buffersToWrite.clear();
-        output.flush(); // 确保日志写入磁盘
+        // 不需要显式调用flush，LogFile的append会根据策略自动决定是否刷新
     }
 
     // 程序结束前确保所有缓冲区内容都写入并刷新
@@ -171,10 +198,18 @@ void AsyncLogging::threadFunc()
         {
             for (const auto &buffer : m_buffers)
             {
-                output.append(buffer->peek(), buffer->readableBytes());
+                const char *data = buffer->peek();
+                size_t len = buffer->readableBytes();
+                Level level = extractLogLevel(data, len);
+                output.append(data, len, level);
             }
         }
-        output.append(m_currentBuffer->peek(), m_currentBuffer->readableBytes());
+
+        const char *data = m_currentBuffer->peek();
+        size_t len = m_currentBuffer->readableBytes();
+        Level level = extractLogLevel(data, len);
+        output.append(data, len, level);
+
         output.flush();
     }
 }

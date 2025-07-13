@@ -13,6 +13,18 @@
 // 声明外部函数
 extern void (*g_asyncOutputFunc)(const char *msg, int len);
 
+// 在文件开头添加函数声明
+
+void printTitle(const std::string &title);
+void testBasicLogging();
+void testFormatting();
+void testMultipleAppenders();
+void testFilters();
+void testAsyncLogging();
+void testMultiThreadLogging();
+void testRealWorldUsage();
+void testAdaptiveAndLevelFlush();
+
 /**
  * @brief 输出标题分隔符，美化测试输出
  * @param title 标题内容
@@ -279,6 +291,61 @@ void testRealWorldUsage()
 }
 
 /**
+ * @brief 测试自适应刷新和分级刷新策略
+ * 演示不同级别日志的刷新策略和自适应刷新功能
+ */
+void testAdaptiveAndLevelFlush()
+{
+    printTitle("自适应刷新和分级刷新策略测试");
+
+    // 确保日志目录存在
+    system("mkdir -p ../logs");
+
+    // 初始化日志系统
+    LogManager::getInstance().init("../logs/adaptive_test", 1024 * 1024, 1);
+
+    auto logger = getLogger("AdaptiveTest");
+
+    std::cout << "测试分级刷新策略：" << std::endl;
+    std::cout << "1. ERROR和FATAL级别日志会立即刷新" << std::endl;
+    LOG_ERROR(logger) << "这是ERROR级别日志，会立即刷新到磁盘";
+
+    std::cout << "2. WARN级别日志会在较短时间内刷新" << std::endl;
+    LOG_WARN(logger) << "这是WARN级别日志，会在较短时间内刷新";
+
+    std::cout << "3. INFO和DEBUG级别日志会在正常间隔刷新" << std::endl;
+    LOG_INFO(logger) << "这是INFO级别日志，会在正常间隔刷新";
+
+    std::cout << "\n测试自适应刷新策略：" << std::endl;
+    std::cout << "1. 低频日志写入 - 使用较长刷新间隔" << std::endl;
+    for (int i = 0; i < 5; ++i)
+    {
+        LOG_INFO(logger) << "低频日志 #" << i;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    std::cout << "2. 高频日志写入 - 使用较短刷新间隔" << std::endl;
+    for (int i = 0; i < 200; ++i)
+    {
+        LOG_INFO(logger) << "高频日志 #" << i;
+    }
+
+    std::cout << "3. 混合级别日志" << std::endl;
+    LOG_DEBUG(logger) << "这是DEBUG日志";
+    LOG_INFO(logger) << "这是INFO日志";
+    LOG_WARN(logger) << "这是WARN日志";
+    LOG_ERROR(logger) << "这是ERROR日志";
+    LOG_FATAL(logger) << "这是FATAL日志";
+
+    std::cout << "\n自适应和分级刷新策略测试完成" << std::endl;
+    std::cout << "日志已写入到logs/adaptive_test.log" << std::endl;
+
+    // 等待日志全部写入
+    std::cout << "等待1秒，确保所有日志写入到磁盘..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
+/**
  * @brief 主函数，运行所有测试
  */
 int main(int argc, char *argv[])
@@ -299,6 +366,7 @@ int main(int argc, char *argv[])
     // testAsyncLogging();
     // testMultiThreadLogging();
     // testRealWorldUsage();
+    testAdaptiveAndLevelFlush();
 
     std::cout << "\n======== 所有测试完成 ========" << std::endl;
     return 0;

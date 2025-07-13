@@ -3,7 +3,9 @@
 #include <memory>
 #include <string>
 #include <mutex>
+#include <unordered_map>
 #include "noncopyable.h"
+#include "LogLevel.h"
 
 /**
  * @brief 日志文件类，负责文件写入、滚动及刷新
@@ -12,6 +14,7 @@
  * 1. 文件的创建和关闭
  * 2. 数据的写入和刷新
  * 3. 日志的滚动(当文件大小超过阈值或到达时间间隔)
+ * 4. 自适应刷新间隔和分级刷新策略
  *
  * 它作为AsyncLogging的底层支持，处理真正的文件I/O操作
  */
@@ -25,20 +28,25 @@ public:
      * @param basename 日志文件基础名称，如"server_log"
      * @param rollSize 日志文件滚动的阈值大小(字节)
      * @param flushInterval 定期刷新的时间间隔(秒)
+     * @param adaptiveFlush 是否启用自适应刷新
+     * @param enableLevelFlush 是否启用分级刷新策略
      */
     LogFile(const std::string &basename,
             off_t rollSize,
-            int flushInterval = 1);
+            int flushInterval = 1,
+            bool adaptiveFlush = true,
+            bool enableLevelFlush = true);
     ~LogFile();
 
     /**
      * @brief 写入日志
      * @param logline 日志内容
      * @param len 日志长度
+     * @param level 日志级别，用于分级刷新策略
      *
      * 写入一行日志，根据需要自动触发文件滚动和缓冲刷新
      */
-    void append(const char *logline, int len);
+    void append(const char *logline, int len, Level level = Level::INFO);
 
     /**
      * @brief 刷新文件缓冲区到磁盘
@@ -51,6 +59,25 @@ public:
      * 当文件大小超过rollSize或达到特定时间点时触发
      */
     void rollFile();
+
+    /**
+     * @brief 设置特定级别的刷新间隔
+     * @param level 日志级别
+     * @param interval 刷新间隔(秒)
+     */
+    void setLevelFlushInterval(Level level, int interval);
+
+    /**
+     * @brief 设置是否启用自适应刷新
+     * @param enable 是否启用
+     */
+    void setAdaptiveFlush(bool enable) { m_adaptiveFlush = enable; }
+
+    /**
+     * @brief 设置是否启用分级刷新
+     * @param enable 是否启用
+     */
+    void setLevelFlush(bool enable) { m_enableLevelFlush = enable; }
 
 private:
     /**
@@ -65,20 +92,35 @@ private:
      * @brief 无锁版本的append，内部使用
      * @param logline 日志内容
      * @param len 日志长度
+     * @param level 日志级别
      */
-    void append_unlocked(const char *logline, int len);
+    void append_unlocked(const char *logline, int len, Level level);
+
+    /**
+     * @brief 计算当前适合的刷新间隔
+     * @return 刷新间隔(秒)
+     */
+    int calculateAdaptiveInterval() const;
 
 private:
     const std::string m_basename; // 日志文件基础名称
     const off_t m_rollSize;       // 日志文件滚动阈值(字节)
-    const int m_flushInterval;    // 刷新间隔(秒)
+    int m_flushInterval;          // 基础刷新间隔(秒)
+    bool m_adaptiveFlush;         // 是否启用自适应刷新
+    bool m_enableLevelFlush;      // 是否启用分级刷新
 
-    int m_count; // 写入计数器，用于判断是否需要滚动
+    int m_count;             // 写入计数器，用于判断是否需要滚动
+    int m_writeRate;         // 写入速率(条/秒)，用于自适应刷新
+    time_t m_lastRateUpdate; // 上次更新写入速率的时间
 
     std::unique_ptr<std::mutex> m_mutex; // 互斥锁，保护文件操作
     time_t m_startOfPeriod;              // 当前日志周期的开始时间(天)
     time_t m_lastRoll;                   // 上次滚动的时间
     time_t m_lastFlush;                  // 上次刷新的时间
+
+    // 各级别最后写入时间和刷新间隔
+    std::unordered_map<Level, time_t> m_levelLastWrite;  // 各级别最后写入时间
+    std::unordered_map<Level, int> m_levelFlushInterval; // 各级别刷新间隔(秒)
 
     FILE *m_file; // 文件指针
 };

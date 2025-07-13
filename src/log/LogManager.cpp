@@ -216,7 +216,9 @@ Logger::ptr LogManager::getLogger(const std::string &name)
  * @param asyncLogRollSize 日志文件滚动大小(字节)
  * @param asyncLogFlushInterval 日志刷新间隔(秒)
  */
-void LogManager::init(const std::string &asyncLogBasename, off_t asyncLogRollSize, int asyncLogFlushInterval)
+void LogManager::init(const std::string &asyncLogBasename,
+                      off_t asyncLogRollSize,
+                      int asyncLogFlushInterval)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -227,8 +229,19 @@ void LogManager::init(const std::string &asyncLogBasename, off_t asyncLogRollSiz
         return;
     }
 
-    // 设置默认日志级别
+    // 增加缓冲区大小，从默认的4KB提高到8KB
+    g_asyncLog = std::make_unique<AsyncLogging>(
+        asyncLogBasename,
+        asyncLogRollSize,
+        asyncLogFlushInterval,
+        8192); // 增加缓冲区参数
+
+// 生产环境调整默认级别为INFO
+#ifdef NDEBUG // 发布模式
     m_root->setLevel(Level::INFO);
+#else // 调试模式
+    m_root->setLevel(Level::DEBUG);
+#endif
 
     // 创建日志目录
     if (!asyncLogBasename.empty())
@@ -248,10 +261,7 @@ void LogManager::init(const std::string &asyncLogBasename, off_t asyncLogRollSiz
         try
         {
             // 创建异步日志实例
-            g_asyncLog = std::make_unique<AsyncLogging>(
-                asyncLogBasename,
-                asyncLogRollSize,
-                asyncLogFlushInterval);
+            g_asyncLog = std::make_unique<AsyncLogging>(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192); // 增加缓冲区参数
             g_asyncLog->start();
 
             // 设置全局异步输出函数
