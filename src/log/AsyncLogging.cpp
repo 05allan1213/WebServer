@@ -81,7 +81,7 @@ void AsyncLogging::threadFunc()
     assert(m_running == true);
 
     // 创建LogFile对象负责实际的文件操作
-    LogFile output(m_basename, m_rollSize, 3);
+    LogFile output(m_basename, m_rollSize, 1);
 
     // 准备两个空闲缓冲区，用于与前端交换
     BufferPtr newBuffer1(new Buffer);

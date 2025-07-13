@@ -136,7 +136,7 @@ LogManager::LogManager()
     m_loggers["root"] = m_root;
 
     // 默认启用异步日志
-    init("./logs/app", 10 * 1024 * 1024, 3);
+    init("./logs/app", 10 * 1024 * 1024, 1);
 
     // 启动监控线程，每60秒检查一次
     startMonitor(60);
@@ -342,7 +342,7 @@ bool LogManager::reinitializeAsyncLogging()
         m_initialized = false;
 
         // 重新初始化
-        init("./logs/app", 10 * 1024 * 1024, 3);
+        init("./logs/app", 10 * 1024 * 1024, 1);
 
         return m_initialized;
     }

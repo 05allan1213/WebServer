@@ -28,7 +28,7 @@ public:
      * @param rollSize 日志滚动大小，超过此大小创建新日志文件
      * @param flushInterval 日志刷新间隔(秒)
      */
-    AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval = 3);
+    AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval = 1);
 
     /**
      * @brief 析构函数，确保资源正确释放

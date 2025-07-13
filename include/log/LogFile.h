@@ -28,7 +28,7 @@ public:
      */
     LogFile(const std::string &basename,
             off_t rollSize,
-            int flushInterval = 3);
+            int flushInterval = 1);
     ~LogFile();
 
     /**
