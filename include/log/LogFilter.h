@@ -45,17 +45,10 @@ public:
      * @brief 构造函数
      * @param level 最低允许的日志级别
      */
-    LevelFilter(Level level) : m_level(level) {}
+    LevelFilter(Level level);
 
-    bool filter(LogEvent::ptr event) override
-    {
-        return event->getLevel() < m_level;
-    }
-
-    std::string getName() const override
-    {
-        return "LevelFilter";
-    }
+    bool filter(LogEvent::ptr event) override;
+    std::string getName() const override;
 
 private:
     Level m_level;
@@ -72,21 +65,10 @@ public:
      * @param pattern 正则表达式模式
      * @param exclude true表示匹配则过滤，false表示匹配则保留
      */
-    RegexFilter(const std::string &pattern, bool exclude = true)
-        : m_regex(pattern), m_exclude(exclude) {}
+    RegexFilter(const std::string &pattern, bool exclude = true);
 
-    bool filter(LogEvent::ptr event) override
-    {
-        std::string content = event->getStringStream().str();
-        bool match = std::regex_search(content, m_regex);
-        // 如果m_exclude为true，匹配则过滤；否则匹配则保留
-        return m_exclude ? match : !match;
-    }
-
-    std::string getName() const override
-    {
-        return "RegexFilter";
-    }
+    bool filter(LogEvent::ptr event) override;
+    std::string getName() const override;
 
 private:
     std::regex m_regex; // 正则表达式
@@ -104,20 +86,10 @@ public:
      * @param filename 要匹配的文件名（部分匹配）
      * @param exclude true表示匹配则过滤，false表示匹配则保留
      */
-    FileFilter(const std::string &filename, bool exclude = false)
-        : m_filename(filename), m_exclude(exclude) {}
+    FileFilter(const std::string &filename, bool exclude = false);
 
-    bool filter(LogEvent::ptr event) override
-    {
-        std::string filename = event->getFile();
-        bool match = filename.find(m_filename) != std::string::npos;
-        return match == m_exclude;
-    }
-
-    std::string getName() const override
-    {
-        return "FileFilter";
-    }
+    bool filter(LogEvent::ptr event) override;
+    std::string getName() const override;
 
 private:
     std::string m_filename;
@@ -135,53 +107,21 @@ public:
      * @param all true表示所有子过滤器都通过才通过(AND关系)，
      *            false表示任一子过滤器通过就通过(OR关系)
      */
-    CompositeFilter(bool all = true) : m_all(all) {}
+    CompositeFilter(bool all = true);
 
     /**
      * @brief 添加子过滤器
      * @param filter 过滤器指针
      */
-    void addFilter(LogFilter::ptr filter)
-    {
-        m_filters.push_back(filter);
-    }
+    void addFilter(LogFilter::ptr filter);
 
     /**
      * @brief 清空所有子过滤器
      */
-    void clearFilters()
-    {
-        m_filters.clear();
-    }
+    void clearFilters();
 
-    bool filter(LogEvent::ptr event) override
-    {
-        // 没有子过滤器时不过滤
-        if (m_filters.empty())
-        {
-            return false;
-        }
-
-        // 根据m_all决定使用AND还是OR逻辑
-        for (auto &filter : m_filters)
-        {
-            bool result = filter->filter(event);
-            // AND逻辑：任一子过滤器返回true(过滤)，则整体返回true(过滤)
-            // OR逻辑：任一子过滤器返回false(不过滤)，则整体返回false(不过滤)
-            if (m_all ? result : !result)
-            {
-                return m_all;
-            }
-        }
-        // AND逻辑：所有子过滤器都返回false(不过滤)，则整体返回false(不过滤)
-        // OR逻辑：所有子过滤器都返回true(过滤)，则整体返回true(过滤)
-        return !m_all;
-    }
-
-    std::string getName() const override
-    {
-        return "CompositeFilter";
-    }
+    bool filter(LogEvent::ptr event) override;
+    std::string getName() const override;
 
 private:
     std::vector<LogFilter::ptr> m_filters; // 子过滤器列表
@@ -200,17 +140,10 @@ public:
      * @brief 构造函数
      * @param func 过滤函数，接收LogEvent返回bool
      */
-    FunctionFilter(FilterFunction func) : m_func(func) {}
+    FunctionFilter(FilterFunction func);
 
-    bool filter(LogEvent::ptr event) override
-    {
-        return m_func(event);
-    }
-
-    std::string getName() const override
-    {
-        return "FunctionFilter";
-    }
+    bool filter(LogEvent::ptr event) override;
+    std::string getName() const override;
 
 private:
     FilterFunction m_func;
