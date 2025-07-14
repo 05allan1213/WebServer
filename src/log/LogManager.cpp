@@ -1,11 +1,13 @@
 #include "LogManager.h"
 #include "AsyncLogging.h"
+#include "LogEvent.h"
+#include "LogEventWrap.h"
 #include <iostream>
 #include <memory>
 #include <thread>
 #include <chrono>
 #include <atomic>
-#include <cstdlib> // For system()
+#include <cstdlib>
 
 // 全局异步日志对象，仅在LogManager内部使用
 static std::unique_ptr<AsyncLogging> g_asyncLog;
@@ -34,6 +36,18 @@ static void monitorAsyncLogging(int checkInterval)
     while (g_monitorRunning)
     {
         bool hasError = false;
+
+        // 获取LogManager实例，检查是否已初始化
+        auto &logManager = LogManager::getInstance();
+        bool isInitialized = logManager.isInitialized();
+
+        // 如果日志系统尚未初始化，则跳过检查
+        if (!isInitialized)
+        {
+            // 日志系统未初始化，不需要报警
+            std::this_thread::sleep_for(std::chrono::seconds(checkInterval));
+            continue;
+        }
 
         // 检查异步日志对象是否存在
         if (!g_asyncLog)
@@ -119,27 +133,13 @@ static void stopMonitor()
 
 /**
  * @brief LogManager构造函数
- * 初始化根日志器(root)，为其配置一个默认的控制台输出Appender
- * 并默认启用异步日志
+ * 初始化根日志器(root)
  */
 LogManager::LogManager()
 {
-    // 创建默认的root日志器
+    // 创建默认的root日志器，但不配置任何Appender
     m_root = std::make_shared<Logger>("root");
-
-    // 默认情况下，root日志器使用控制台输出
-    LogAppenderPtr consoleAppender(new StdoutLogAppender());
-    consoleAppender->setFormatter(std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
-    m_root->addAppender(consoleAppender);
-
-    // 将root日志器加入管理表
     m_loggers["root"] = m_root;
-
-    // 默认启用异步日志
-    init("./logs/app", 10 * 1024 * 1024, 1);
-
-    // 启动监控线程，每60秒检查一次
-    startMonitor(60);
 }
 
 /**
@@ -210,11 +210,14 @@ Logger::ptr LogManager::getLogger(const std::string &name)
 }
 
 /**
- * @brief 初始化日志系统
- * 配置异步日志和全局日志级别
- * @param asyncLogBasename 异步日志文件基础名，为空则不启用异步日志
- * @param asyncLogRollSize 日志文件滚动大小(字节)
- * @param asyncLogFlushInterval 日志刷新间隔(秒)
+ * @brief 初始化或重新配置日志系统
+ *
+ * 这是配置日志系统的唯一入口。它会清空所有现有配置，
+ * 然后根据提供的参数重新设置。
+ *
+ * @param asyncLogBasename 异步日志文件基础名。如果为空，则只使用控制台输出。
+ * @param asyncLogRollSize 日志文件滚动大小(字节)。
+ * @param asyncLogFlushInterval 日志刷新间隔(秒)。
  */
 void LogManager::init(const std::string &asyncLogBasename,
                       off_t asyncLogRollSize,
@@ -222,101 +225,98 @@ void LogManager::init(const std::string &asyncLogBasename,
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    // 防止重复初始化
-    if (m_initialized)
+    // --- 1. 停止并清理旧资源 ---
+    if (g_asyncLog)
     {
-        std::cerr << "日志系统已初始化，不能重复初始化" << std::endl;
-        return;
+        g_asyncLog->stop();
+        g_asyncLog.reset();
+    }
+    if (g_monitorRunning)
+    {
+        stopMonitor();
     }
 
-    // 增加缓冲区大小，从默认的4KB提高到8KB
-    g_asyncLog = std::make_unique<AsyncLogging>(
-        asyncLogBasename,
-        asyncLogRollSize,
-        asyncLogFlushInterval,
-        8192); // 增加缓冲区参数
+    // --- 2. 清空所有日志器的Appender ---
+    // 这至关重要，确保所有Logger（包括root和其它自定义Logger）的配置都被重置
+    for (auto &pair : m_loggers)
+    {
+        pair.second->clearAppenders();
+    }
 
-// 生产环境调整默认级别为INFO
-#ifdef NDEBUG // 发布模式
+    // --- 3. 设置默认控制台输出 ---
+    // 无论是否启用异步日志，都默认添加控制台输出
+    LogAppenderPtr consoleAppender(new StdoutLogAppender());
+    consoleAppender->setFormatter(
+        std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
+    m_root->addAppender(consoleAppender);
+
+    // --- 4. 配置日志级别 ---
+#ifdef NDEBUG
     m_root->setLevel(Level::INFO);
-#else // 调试模式
+#else
     m_root->setLevel(Level::DEBUG);
 #endif
 
-    // 创建日志目录
+    // --- 5. 配置异步文件输出 (如果提供了文件名) ---
     if (!asyncLogBasename.empty())
     {
+        // 创建日志目录
         size_t pos = asyncLogBasename.find_last_of('/');
         if (pos != std::string::npos)
         {
             std::string dir = asyncLogBasename.substr(0, pos);
-            std::string cmd = "mkdir -p " + dir;
-            system(cmd.c_str());
+            system(("mkdir -p " + dir).c_str());
         }
-    }
 
-    // 若指定了异步日志文件名，则启用异步日志
-    if (!asyncLogBasename.empty())
-    {
         try
         {
-            // 创建异步日志实例
-            g_asyncLog = std::make_unique<AsyncLogging>(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192); // 增加缓冲区参数
+            // 创建并启动异步日志
+            g_asyncLog = std::make_unique<AsyncLogging>(
+                asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192);
             g_asyncLog->start();
 
-            // 设置全局异步输出函数
+            // 设置全局异步输出函数指针
             g_asyncOutputFunc = [](const char *msg, int len)
             {
                 if (g_asyncLog)
-                {
                     g_asyncLog->append(msg, len);
-                }
-                else
-                {
-                    // 异步日志对象不存在，回退到标准错误输出
-                    std::cerr.write(msg, len);
-                    std::cerr << "[日志系统错误: 异步日志对象不存在]" << std::endl;
-                }
             };
 
-            // 添加文件输出器到root日志器
+            // 为root日志器添加文件输出目标
             LogAppenderPtr fileAppender(new FileLogAppender(asyncLogBasename + ".log"));
             fileAppender->setFormatter(
                 std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
             m_root->addAppender(fileAppender);
 
             // 记录启动信息
-            auto event = std::make_shared<LogEvent>(__FILE__, __LINE__, 0, 1, time(0), Level::INFO);
-            event->getStringStream() << "异步日志系统已启动 - 文件: " << asyncLogBasename
-                                     << ", 滚动大小: " << (asyncLogRollSize / 1024 / 1024) << "MB"
-                                     << ", 刷新间隔: " << asyncLogFlushInterval << "秒";
-            m_root->info(event);
+            LOG_INFO(m_root) << "异步日志系统已启动 - 文件: " << asyncLogBasename
+                             << ", 滚动大小: " << (asyncLogRollSize / 1024 / 1024) << "MB"
+                             << ", 刷新间隔: " << asyncLogFlushInterval << "秒";
         }
         catch (const std::exception &e)
         {
+            g_asyncOutputFunc = nullptr;
             std::cerr << "异步日志系统初始化失败: " << e.what() << std::endl;
-            std::cerr << "回退到同步日志模式" << std::endl;
+        }
+    }
 
-            // 添加文件输出器（同步模式）
-            try
+    // --- 6. 重新应用Appender到所有非root日志器 ---
+    for (auto &pair : m_loggers)
+    {
+        if (pair.first != "root")
+        {
+            // 清理后重新从root继承
+            pair.second->clearAppenders();
+            for (auto &appender : m_root->getAppenders())
             {
-                LogAppenderPtr fileAppender(new FileLogAppender(asyncLogBasename + ".log"));
-                fileAppender->setFormatter(
-                    std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
-                m_root->addAppender(fileAppender);
-            }
-            catch (const std::exception &e)
-            {
-                std::cerr << "同步日志初始化也失败: " << e.what() << std::endl;
+                pair.second->addAppender(appender);
             }
         }
     }
-    else
-    {
-        std::cerr << "警告: 未指定日志文件名，日志将只输出到控制台" << std::endl;
-    }
 
+    // --- 7. 标记为已初始化并启动监控 ---
     m_initialized = true;
+    startMonitor(60);
 }
 
 /**
@@ -352,7 +352,7 @@ bool LogManager::reinitializeAsyncLogging()
         m_initialized = false;
 
         // 重新初始化
-        init("./logs/app", 10 * 1024 * 1024, 1);
+        init("../logs/app", 10 * 1024 * 1024, 1);
 
         return m_initialized;
     }

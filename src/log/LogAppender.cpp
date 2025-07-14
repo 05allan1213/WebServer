@@ -47,7 +47,7 @@ void defaultAsyncOutput(const char *msg, int len)
     }
 
     // 备用输出方案: 写入备用日志文件
-    // static std::ofstream fallbackLog("./logs/fallback.log", std::ios::app);
+    // static std::ofstream fallbackLog("../logs/fallback.log", std::ios::app);
     // if (fallbackLog.is_open()) {
     //     fallbackLog.write(msg, len);
     //     fallbackLog.flush();

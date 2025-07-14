@@ -27,8 +27,9 @@ public:
      * @param basename 日志文件基础名称
      * @param rollSize 日志滚动大小，超过此大小创建新日志文件
      * @param flushInterval 日志刷新间隔(秒)
+     * @param bufferSize 单个缓冲区大小(字节)，默认4KB
      */
-    AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval = 1);
+    AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval = 1, size_t bufferSize = 4096);
 
     /**
      * @brief 析构函数，确保资源正确释放
@@ -70,6 +71,7 @@ private:
     std::atomic<bool> m_running;  // 线程运行标志
     const std::string m_basename; // 日志文件名
     const off_t m_rollSize;       // 日志文件滚动大小
+    const size_t m_bufferSize;    // 缓冲区大小(字节)
 
     std::thread m_thread;           // 后台写入线程
     std::mutex m_mutex;             // 互斥锁，保护缓冲区

@@ -66,6 +66,12 @@ public:
      */
     bool reinitializeAsyncLogging();
 
+    /**
+     * @brief 检查日志系统是否已初始化
+     * @return true表示已初始化，false表示未初始化
+     */
+    bool isInitialized() const { return m_initialized; }
+
 private:
     /**
      * @brief 私有构造函数，创建默认的root日志器
@@ -82,13 +88,3 @@ private:
     /// 是否已初始化标志
     bool m_initialized = false;
 };
-
-/**
- * @brief 快速获取日志器的全局函数
- * @param name 日志器名称，默认为"root"
- * @return 日志器智能指针
- */
-inline Logger::ptr getLogger(const std::string &name = "root")
-{
-    return LogManager::getInstance().getLogger(name);
-}

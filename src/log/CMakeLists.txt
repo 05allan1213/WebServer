@@ -3,3 +3,7 @@ file(GLOB_RECURSE LOG_SRC_FILES "*.cpp")
 
 # 将源文件编译为静态库
 add_library(log STATIC ${LOG_SRC_FILES})
+
+# 添加头文件搜索路径
+# CMAKE_SOURCE_DIR 指向顶层CMakeLists.txt所在目录 (WebServer)
+target_include_directories(log PUBLIC ${CMAKE_SOURCE_DIR}/include)

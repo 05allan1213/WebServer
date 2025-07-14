@@ -2,16 +2,17 @@
 #include <cassert>
 #include <chrono>
 
-AsyncLogging::AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval)
+AsyncLogging::AsyncLogging(const std::string &basename, off_t rollSize, int flushInterval, size_t bufferSize)
     : m_flushInterval(flushInterval),
       m_running(false),
       m_basename(basename),
       m_rollSize(rollSize),
+      m_bufferSize(bufferSize),
       m_thread(),
       m_mutex(),
       m_cond(),
-      m_currentBuffer(new Buffer),
-      m_nextBuffer(new Buffer),
+      m_currentBuffer(new Buffer(m_bufferSize)),
+      m_nextBuffer(new Buffer(m_bufferSize)),
       m_buffers()
 {
     m_currentBuffer->retrieveAll(); // 清空缓冲区
@@ -65,7 +66,7 @@ void AsyncLogging::append(const char *logline, int len)
         else
         {
             // 如果备用缓冲区也被用了，就新分配一个（这种情况很少见）
-            m_currentBuffer.reset(new Buffer);
+            m_currentBuffer.reset(new Buffer(m_bufferSize));
         }
 
         // 将新日志写入新的当前缓冲区
@@ -105,8 +106,8 @@ void AsyncLogging::threadFunc()
     LogFile output(m_basename, m_rollSize, m_flushInterval, true, true);
 
     // 准备两个空闲缓冲区，用于与前端交换
-    BufferPtr newBuffer1(new Buffer);
-    BufferPtr newBuffer2(new Buffer);
+    BufferPtr newBuffer1(new Buffer(m_bufferSize));
+    BufferPtr newBuffer2(new Buffer(m_bufferSize));
     newBuffer1->retrieveAll();
     newBuffer2->retrieveAll();
 
