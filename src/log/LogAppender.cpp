@@ -408,3 +408,58 @@ bool FileLogAppender::reopen()
     // 返回是否成功打开
     return m_filestream.is_open();
 }
+
+/**
+ * @brief 设置日志滚动模式
+ * @param mode 滚动模式
+ */
+void FileLogAppender::setRollMode(LogFile::RollMode mode)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_rollMode = mode;
+
+    // 记录日志滚动模式变更
+    std::string modeStr;
+    switch (mode)
+    {
+    case LogFile::RollMode::SIZE:
+        modeStr = "按大小滚动";
+        break;
+    case LogFile::RollMode::DAILY:
+        modeStr = "每天滚动";
+        break;
+    case LogFile::RollMode::HOURLY:
+        modeStr = "每小时滚动";
+        break;
+    case LogFile::RollMode::MINUTELY:
+        modeStr = "每分钟滚动";
+        break;
+    case LogFile::RollMode::SIZE_DAILY:
+        modeStr = "综合策略：按大小和每天滚动";
+        break;
+    case LogFile::RollMode::SIZE_HOURLY:
+        modeStr = "综合策略：按大小和每小时滚动";
+        break;
+    case LogFile::RollMode::SIZE_MINUTELY:
+        modeStr = "综合策略：按大小和每分钟滚动";
+        break;
+    default:
+        modeStr = "未知模式";
+        break;
+    }
+
+    // 这里我们只能在文件流中记录这个变更，因为我们没有直接访问LogFile的方法
+    if (m_filestream.is_open())
+    {
+        m_filestream << "--- 日志滚动模式已更改为: " << modeStr << " ---" << std::endl;
+    }
+}
+
+/**
+ * @brief 获取当前日志滚动模式
+ * @return 当前滚动模式
+ */
+LogFile::RollMode FileLogAppender::getRollMode() const
+{
+    return m_rollMode;
+}

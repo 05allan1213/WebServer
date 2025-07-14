@@ -5,20 +5,18 @@
 #include <algorithm>
 
 Logger::Logger(const std::string &name)
-    : m_name(name), m_level(Level::DEBUG)
+    : m_name(name), m_level(Level::DEBUG), m_parent(nullptr)
 {
-    // Logger 构造时，默认添加一个输出到控制台的 Appender
-    LogAppenderPtr default_appender(new StdoutLogAppender());
-    // 给这个默认的 appender 设置一个默认的 formatter
-    default_appender->setFormatter(std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
-    m_appenders.push_back(default_appender);
+    // Logger 构造时，不再默认添加任何Appender
+    // Appender的配置完全交给LogManager
 }
 
 void Logger::log(Level level, LogEvent::ptr event)
 {
-    // 只有当日志事件的级别 >= 日志器设定的级别时，才进行输出
+    // 只有当日志事件的级别 >= 日志器设定的级别时，才进行处理
     if (level >= m_level)
     {
+        auto self = shared_from_this();
         // 检查是否被过滤器过滤
         for (auto &filter : m_filters)
         {
@@ -29,12 +27,16 @@ void Logger::log(Level level, LogEvent::ptr event)
             }
         }
 
-        // 使用 formatter 格式化日志
-        auto self = shared_from_this();
-        // 遍历所有 appender，调用它们的 log 方法
+        // 遍历自己的appender，进行输出
         for (auto &appender : m_appenders)
         {
             appender->log(self, event);
+        }
+
+        // 如果允许继承且存在父logger，则将日志事件向上传递
+        if (m_enableInherit && m_parent)
+        {
+            m_parent->log(level, event);
         }
     }
 }

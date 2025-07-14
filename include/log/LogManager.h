@@ -2,7 +2,8 @@
 
 #include "Logger.h"
 #include "LogAppender.h"
-#include "noncopyable.h"
+#include "LogFile.h"
+#include "base/noncopyable.h"
 #include <string>
 #include <map>
 #include <memory>
@@ -49,10 +50,12 @@ public:
      * @param asyncLogBasename 异步日志文件基础名，为空则不使用异步日志
      * @param asyncLogRollSize 异步日志单文件最大大小，默认10MB
      * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
+     * @param rollMode 日志滚动模式，默认按大小滚动
      */
     void init(const std::string &asyncLogBasename = "",
               off_t asyncLogRollSize = 10 * 1024 * 1024,
-              int asyncLogFlushInterval = 1);
+              int asyncLogFlushInterval = 1,
+              LogFile::RollMode rollMode = LogFile::RollMode::SIZE);
 
     /**
      * @brief 检查异步日志系统状态
@@ -72,6 +75,12 @@ public:
      */
     bool isInitialized() const { return m_initialized; }
 
+    /**
+     * @brief 设置日志滚动模式
+     * @param mode 滚动模式
+     */
+    void setRollMode(LogFile::RollMode mode);
+
 private:
     /**
      * @brief 私有构造函数，创建默认的root日志器
@@ -87,4 +96,12 @@ private:
     std::map<std::string, Logger::ptr> m_loggers;
     /// 是否已初始化标志
     bool m_initialized = false;
+    /// 当前日志滚动模式
+    LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE_HOURLY;
+    /// 当前日志文件基础名
+    std::string m_logBasename;
+    /// 当前日志滚动大小
+    off_t m_rollSize = 0;
+    /// 当前日志刷新间隔
+    int m_flushInterval = 0;
 };

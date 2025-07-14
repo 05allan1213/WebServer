@@ -11,14 +11,16 @@
  * @brief LogFile 构造函数
  * @param basename 日志文件的基本名称，包含路径
  * @param rollSize 日志文件滚动大小阈值（字节）
+ * @param rollMode 日志滚动模式
  * @param flushInterval 刷新间隔（秒）
  * @param adaptiveFlush 是否启用自适应刷新
  * @param enableLevelFlush 是否启用分级刷新策略
  */
-LogFile::LogFile(const std::string &basename, off_t rollSize, int flushInterval,
+LogFile::LogFile(const std::string &basename, off_t rollSize, RollMode rollMode, int flushInterval,
                  bool adaptiveFlush, bool enableLevelFlush)
     : m_basename(basename),
       m_rollSize(rollSize),
+      m_rollMode(rollMode),
       m_flushInterval(flushInterval),
       m_adaptiveFlush(adaptiveFlush),
       m_enableLevelFlush(enableLevelFlush),
@@ -28,7 +30,10 @@ LogFile::LogFile(const std::string &basename, off_t rollSize, int flushInterval,
       m_mutex(new std::mutex),
       m_startOfPeriod(0),
       m_lastRoll(0),
-      m_lastFlush(0)
+      m_lastFlush(0),
+      m_lastDay(0),
+      m_lastHour(0),
+      m_lastMinute(0)
 {
     // 确保日志目录存在
     size_t pos = basename.find_last_of('/');
@@ -119,6 +124,45 @@ int LogFile::calculateAdaptiveInterval() const
     {
         // 超高频写入，使用最短间隔
         return 1;
+    }
+}
+
+/**
+ * @brief 检查是否需要按时间滚动
+ * @param now 当前时间
+ * @return 是否需要滚动
+ */
+bool LogFile::shouldRollByTime(time_t now) const
+{
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+
+    // 根据不同的滚动模式检查是否需要滚动
+    switch (m_rollMode)
+    {
+    case RollMode::DAILY:
+    case RollMode::SIZE_DAILY:
+        // 每天滚动一次，检查当前日期是否与上次滚动日期不同
+        return tm_now.tm_mday != m_lastDay;
+
+    case RollMode::HOURLY:
+    case RollMode::SIZE_HOURLY:
+        // 每小时滚动一次，检查当前小时是否与上次滚动小时不同
+        // 或者日期已经变化
+        return tm_now.tm_hour != m_lastHour || tm_now.tm_mday != m_lastDay;
+
+    case RollMode::MINUTELY:
+    case RollMode::SIZE_MINUTELY:
+        // 每分钟滚动一次，检查当前分钟是否与上次滚动分钟不同
+        // 或者小时/日期已经变化
+        return tm_now.tm_min != m_lastMinute ||
+               tm_now.tm_hour != m_lastHour ||
+               tm_now.tm_mday != m_lastDay;
+
+    case RollMode::SIZE:
+    default:
+        // 按大小滚动时，此函数返回false
+        return false;
     }
 }
 
@@ -239,8 +283,22 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
         m_lastFlush = now;
     }
 
-    // 如果累计写入量超过滚动阈值，则滚动日志文件
-    if (m_count > m_rollSize)
+    // 检查是否需要滚动日志文件
+    // 1. 检查按大小滚动（对纯大小模式和综合模式都适用）
+    bool needRoll = (m_count > m_rollSize &&
+                     (m_rollMode == RollMode::SIZE ||
+                      m_rollMode == RollMode::SIZE_DAILY ||
+                      m_rollMode == RollMode::SIZE_HOURLY ||
+                      m_rollMode == RollMode::SIZE_MINUTELY));
+
+    // 2. 检查按时间滚动（对纯时间模式和综合模式都适用）
+    if (!needRoll && m_rollMode != RollMode::SIZE)
+    {
+        needRoll = shouldRollByTime(now);
+    }
+
+    // 如果需要滚动，则执行滚动
+    if (needRoll)
     {
         rollFile();
     }
@@ -261,12 +319,21 @@ void LogFile::rollFile()
     // 一天有86400秒
     time_t start = now / 86400 * 86400;
 
+    // 获取当前时间的结构体，用于按时间滚动
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+
     if (now > m_lastRoll)
     {
         m_lastRoll = now;        // 更新最后滚动时间
         m_lastFlush = now;       // 更新最后刷新时间
         m_startOfPeriod = start; // 更新当前周期开始时间
         m_count = 0;             // 重置计数器
+
+        // 更新时间相关字段，用于按时间滚动
+        m_lastDay = tm_now.tm_mday;
+        m_lastHour = tm_now.tm_hour;
+        m_lastMinute = tm_now.tm_min;
 
         // 关闭旧文件（如果存在）
         if (m_file)

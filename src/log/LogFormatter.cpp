@@ -106,7 +106,7 @@ class NameFormatItem : public FormatItem
 public:
     void format(std::ostream &os, Logger::ptr logger, LogEvent::ptr event) override
     {
-        os << logger->getName();
+        os << event->getLoggerName();
     }
 };
 

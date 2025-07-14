@@ -7,9 +7,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include "Buffer.h"
+#include "base/Buffer.h"
 #include "LogFile.h"
-#include "noncopyable.h"
+#include "base/noncopyable.h"
 
 /**
  * @brief 异步日志类，实现高性能的日志后端

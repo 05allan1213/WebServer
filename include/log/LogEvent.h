@@ -29,7 +29,7 @@ public:
      * @param time 时间戳
      * @param level 日志级别
      */
-    LogEvent(const char *file, int32_t line, uint32_t elapse, uint32_t threadId, uint64_t time, Level level);
+    LogEvent(const char *file, int32_t line, uint32_t elapse, uint32_t threadId, uint64_t time, Level level, const std::string &loggerName);
     ~LogEvent();
 
     // 获取日志信息的各种访问器
@@ -39,6 +39,7 @@ public:
     uint32_t getThreadId() const { return m_threadId; }
     uint64_t getTime() const { return m_time; }
     Level getLevel() const { return m_level; }
+    const std::string &getLoggerName() const { return m_loggerName; }
 
     /**
      * @brief 获取日志内容字符串流
@@ -53,5 +54,6 @@ private:
     uint32_t m_threadId = 0;       // 线程id
     uint64_t m_time = 0;           // 时间戳
     Level m_level = Level::UNKNOW; // 日志级别
+    std::string m_loggerName;      // 日志器名称
     std::stringstream m_ss;        // 日志内容
 };

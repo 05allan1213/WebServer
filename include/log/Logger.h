@@ -4,7 +4,7 @@
 #include "LogLevel.h"
 #include "LogFormatter.h"
 #include "LogFilter.h"
-#include "noncopyable.h"
+#include "base/noncopyable.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -149,12 +149,38 @@ public:
      */
     void clearFilters();
 
+    /**
+     * @brief 设置父日志器
+     * @param parent 父日志器指针
+     */
+    void setParent(Logger::ptr parent) { m_parent = parent; }
+
+    /**
+     * @brief 获取父日志器
+     * @return 父日志器指针
+     */
+    Logger::ptr getParent() const { return m_parent; }
+
+    /**
+     * @brief 设置是否继承Appender
+     * @param enable true表示继承，false表示不继承
+     */
+    void setEnableInherit(bool enable) { m_enableInherit = enable; }
+
+    /**
+     * @brief 获取是否继承Appender
+     * @return true表示继承，false表示不继承
+     */
+    bool getEnableInherit() const { return m_enableInherit; }
+
 private:
     std::string m_name;                      // 日志名称
     Level m_level;                           // 日志器允许输出的最低级别
     LogFormatter::ptr m_formatter;           // 日志格式化器
     std::vector<LogAppenderPtr> m_appenders; // 日志输出器集合
     std::vector<LogFilter::ptr> m_filters;   // 日志过滤器集合
+    Logger::ptr m_parent;                    // 父日志器
+    bool m_enableInherit = true;             // 是否向上级传递日志事件，默认为true
 };
 
 /**
@@ -168,7 +194,7 @@ private:
  */
 #define LOG_LEVEL(logger, level)     \
     if (logger->getLevel() <= level) \
-    LogEventWrap(logger, std::make_shared<LogEvent>(__FILE__, __LINE__, 0, 1, time(0), level)).getStringStream()
+    LogEventWrap(logger, std::make_shared<LogEvent>(__FILE__, __LINE__, 0, 1, time(0), level, logger->getName())).getStringStream()
 
 // 不同级别的日志宏
 #define LOG_DEBUG(logger) LOG_LEVEL(logger, Level::DEBUG)

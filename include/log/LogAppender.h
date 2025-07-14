@@ -4,7 +4,8 @@
 #include "LogEvent.h"
 #include "LogFormatter.h"
 #include "LogFilter.h"
-#include "noncopyable.h"
+#include "LogFile.h"
+#include "base/noncopyable.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -157,9 +158,23 @@ public:
      */
     bool reopen();
 
+    /**
+     * @brief 设置日志滚动模式
+     * @param mode 滚动模式
+     */
+    void setRollMode(LogFile::RollMode mode);
+
+    /**
+     * @brief 获取当前日志滚动模式
+     * @return 当前滚动模式
+     */
+    LogFile::RollMode getRollMode() const;
+
 private:
     /// 日志文件名
     std::string m_filename;
     /// 文件输出流
     std::ofstream m_filestream;
+    /// 日志滚动模式
+    LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE;
 };

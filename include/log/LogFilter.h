@@ -1,7 +1,7 @@
 #pragma once
 
 #include "LogEvent.h"
-#include "noncopyable.h"
+#include "base/noncopyable.h"
 #include <memory>
 #include <string>
 #include <functional>

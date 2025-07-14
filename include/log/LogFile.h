@@ -4,7 +4,7 @@
 #include <string>
 #include <mutex>
 #include <unordered_map>
-#include "noncopyable.h"
+#include "base/noncopyable.h"
 #include "LogLevel.h"
 
 /**
@@ -24,15 +24,31 @@ public:
     using ptr = std::shared_ptr<LogFile>;
 
     /**
+     * @brief 日志滚动模式枚举
+     */
+    enum class RollMode
+    {
+        SIZE,         // 按大小滚动
+        DAILY,        // 每天滚动一次
+        HOURLY,       // 每小时滚动一次
+        MINUTELY,     // 每分钟滚动一次（仅用于测试）
+        SIZE_DAILY,   // 综合策略：按大小和每天滚动
+        SIZE_HOURLY,  // 综合策略：按大小和每小时滚动
+        SIZE_MINUTELY // 综合策略：按大小和每分钟滚动（仅用于测试）
+    };
+
+    /**
      * @brief 构造函数
      * @param basename 日志文件基础名称，如"server_log"
      * @param rollSize 日志文件滚动的阈值大小(字节)
+     * @param rollMode 日志滚动模式，默认按大小滚动
      * @param flushInterval 定期刷新的时间间隔(秒)
      * @param adaptiveFlush 是否启用自适应刷新
      * @param enableLevelFlush 是否启用分级刷新策略
      */
     LogFile(const std::string &basename,
             off_t rollSize,
+            RollMode rollMode = RollMode::SIZE,
             int flushInterval = 1,
             bool adaptiveFlush = true,
             bool enableLevelFlush = true);
@@ -79,6 +95,18 @@ public:
      */
     void setLevelFlush(bool enable) { m_enableLevelFlush = enable; }
 
+    /**
+     * @brief 设置日志滚动模式
+     * @param mode 滚动模式
+     */
+    void setRollMode(RollMode mode) { m_rollMode = mode; }
+
+    /**
+     * @brief 获取当前滚动模式
+     * @return 当前滚动模式
+     */
+    RollMode getRollMode() const { return m_rollMode; }
+
 private:
     /**
      * @brief 生成日志文件名
@@ -102,9 +130,17 @@ private:
      */
     int calculateAdaptiveInterval() const;
 
+    /**
+     * @brief 检查是否需要按时间滚动
+     * @param now 当前时间
+     * @return 是否需要滚动
+     */
+    bool shouldRollByTime(time_t now) const;
+
 private:
     const std::string m_basename; // 日志文件基础名称
     const off_t m_rollSize;       // 日志文件滚动阈值(字节)
+    RollMode m_rollMode;          // 日志滚动模式
     int m_flushInterval;          // 基础刷新间隔(秒)
     bool m_adaptiveFlush;         // 是否启用自适应刷新
     bool m_enableLevelFlush;      // 是否启用分级刷新
@@ -117,6 +153,11 @@ private:
     time_t m_startOfPeriod;              // 当前日志周期的开始时间(天)
     time_t m_lastRoll;                   // 上次滚动的时间
     time_t m_lastFlush;                  // 上次刷新的时间
+
+    // 按时间滚动相关
+    int m_lastDay;    // 上次滚动的日期(天)
+    int m_lastHour;   // 上次滚动的小时
+    int m_lastMinute; // 上次滚动的分钟
 
     // 各级别最后写入时间和刷新间隔
     std::unordered_map<Level, time_t> m_levelLastWrite;  // 各级别最后写入时间

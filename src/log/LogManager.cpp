@@ -191,18 +191,25 @@ Logger::ptr LogManager::getLogger(const std::string &name)
     // 不存在则创建一个新的Logger
     Logger::ptr logger = std::make_shared<Logger>(name);
 
-    // 新创建的logger继承root的appender
-    logger->setLevel(m_root->getLevel());
-    if (m_root->getFormatter())
+    // 建立父子关系
+    // 如果日志器名称为 "a.b.c"，则其父日志器为 "a.b"
+    size_t pos = name.find_last_of('.');
+    if (pos == std::string::npos)
     {
-        logger->setFormatter(m_root->getFormatter());
+        // 如果名称中没有'.',说明是顶级日志器，其父是root
+        // (root本身在构造时已创建，所以这里的name不会是"root")
+        logger->setParent(m_root);
+    }
+    else
+    {
+        // 名称中有'.', 则递归获取父日志器
+        std::string parent_name = name.substr(0, pos);
+        logger->setParent(getLogger(parent_name));
     }
 
-    // 继承root的所有Appender
-    for (auto appender : m_root->getAppenders())
-    {
-        logger->addAppender(appender);
-    }
+    // 新创建的logger默认继承父logger的级别
+    // Appender和Formatter不再需要复制，依赖事件向上传递
+    logger->setLevel(logger->getParent()->getLevel());
 
     // 加入管理表
     m_loggers[name] = logger;
@@ -221,9 +228,16 @@ Logger::ptr LogManager::getLogger(const std::string &name)
  */
 void LogManager::init(const std::string &asyncLogBasename,
                       off_t asyncLogRollSize,
-                      int asyncLogFlushInterval)
+                      int asyncLogFlushInterval,
+                      LogFile::RollMode rollMode)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+
+    // --- 0. 保存配置 ---
+    m_logBasename = asyncLogBasename;
+    m_rollSize = asyncLogRollSize;
+    m_flushInterval = asyncLogFlushInterval;
+    m_rollMode = rollMode;
 
     // --- 1. 停止并清理旧资源 ---
     if (g_asyncLog)
@@ -275,6 +289,9 @@ void LogManager::init(const std::string &asyncLogBasename,
                 asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192);
             g_asyncLog->start();
 
+            // 注意：AsyncLogging内部会创建LogFile，但我们无法直接设置其滚动模式
+            // 因此需要在后续通过FileLogAppender来设置
+
             // 设置全局异步输出函数指针
             g_asyncOutputFunc = [](const char *msg, int len)
             {
@@ -283,9 +300,11 @@ void LogManager::init(const std::string &asyncLogBasename,
             };
 
             // 为root日志器添加文件输出目标
-            LogAppenderPtr fileAppender(new FileLogAppender(asyncLogBasename + ".log"));
+            auto fileAppender = std::make_shared<FileLogAppender>(asyncLogBasename + ".log");
             fileAppender->setFormatter(
                 std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
+            // 设置滚动模式
+            fileAppender->setRollMode(rollMode);
             m_root->addAppender(fileAppender);
 
             // 记录启动信息
@@ -300,21 +319,7 @@ void LogManager::init(const std::string &asyncLogBasename,
         }
     }
 
-    // --- 6. 重新应用Appender到所有非root日志器 ---
-    for (auto &pair : m_loggers)
-    {
-        if (pair.first != "root")
-        {
-            // 清理后重新从root继承
-            pair.second->clearAppenders();
-            for (auto &appender : m_root->getAppenders())
-            {
-                pair.second->addAppender(appender);
-            }
-        }
-    }
-
-    // --- 7. 标记为已初始化并启动监控 ---
+    // --- 6. 标记为已初始化并启动监控 ---
     m_initialized = true;
     startMonitor(60);
 }
@@ -339,22 +344,86 @@ bool LogManager::checkAsyncLoggingStatus() const
  */
 bool LogManager::reinitializeAsyncLogging()
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // 停止并清理旧资源
+    if (g_asyncLog)
+    {
+        g_asyncLog->stop();
+        g_asyncLog.reset();
+        g_asyncOutputFunc = nullptr;
+    }
+
+    // 清空root日志器的Appender，准备重新添加
+    m_root->clearAppenders();
+
+    // 重新添加控制台Appender
+    LogAppenderPtr consoleAppender(new StdoutLogAppender());
+    consoleAppender->setFormatter(
+        std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
+    m_root->addAppender(consoleAppender);
+
+    // 根据保存的配置重新初始化文件Appender
+    if (!m_logBasename.empty())
+    {
+        try
+        {
+            // 创建并启动异步日志
+            g_asyncLog = std::make_unique<AsyncLogging>(
+                m_logBasename, m_rollSize, m_flushInterval, 8192);
+            g_asyncLog->start();
+
+            // 设置全局异步输出函数指针
+            g_asyncOutputFunc = [](const char *msg, int len)
+            {
+                if (g_asyncLog)
+                    g_asyncLog->append(msg, len);
+            };
+
+            // 为root日志器添加文件输出目标
+            auto fileAppender = std::make_shared<FileLogAppender>(m_logBasename + ".log");
+            fileAppender->setFormatter(
+                std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
+            fileAppender->setRollMode(m_rollMode); // 使用当前的滚动模式
+            m_root->addAppender(fileAppender);
+
+            LOG_INFO(m_root) << "异步日志系统已根据新配置重新初始化";
+        }
+        catch (const std::exception &e)
+        {
+            g_asyncOutputFunc = nullptr;
+            std::cerr << "异步日志系统重新初始化失败: " << e.what() << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief 设置日志滚动模式
+ * @param mode 滚动模式
+ */
+void LogManager::setRollMode(LogFile::RollMode mode)
+{
+    // 先存储新的滚动模式
+    m_rollMode = mode;
+
+    // 如果日志系统已初始化，则触发重新初始化流程以应用新模式
+    // 注意：这里不能在锁内调用reinitializeAsyncLogging，因为它内部也会获取锁，可能导致死锁
     if (m_initialized)
     {
-        // 停止现有的异步日志
-        if (g_asyncLog)
+        // 先记录日志，表明滚动模式已更改
+        auto rootLogger = getRoot();
+        if (rootLogger)
         {
-            g_asyncLog->stop();
-            g_asyncLog.reset();
+            LOG_INFO(rootLogger) << "日志滚动模式已请求更改为: " << static_cast<int>(mode) << "，将重新初始化文件日志...";
         }
 
-        // 重置初始化标志
-        m_initialized = false;
-
-        // 重新初始化
-        init("../logs/app", 10 * 1024 * 1024, 1);
-
-        return m_initialized;
+        // 在单独的线程中执行重新初始化，避免死锁
+        std::thread([this]()
+                    {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟，确保日志已写入
+            this->reinitializeAsyncLogging(); })
+            .detach();
     }
-    return false;
 }

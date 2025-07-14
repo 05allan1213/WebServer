@@ -6,12 +6,14 @@
  * @param asyncLogBasename 异步日志文件基础名，为空则不使用异步日志
  * @param asyncLogRollSize 异步日志单文件最大大小，默认10MB
  * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
+ * @param rollMode 日志滚动模式，默认按大小滚动
  */
 void initLogSystem(const std::string &asyncLogBasename,
                    off_t asyncLogRollSize,
-                   int asyncLogFlushInterval)
+                   int asyncLogFlushInterval,
+                   LogFile::RollMode rollMode)
 {
-    LogManager::getInstance().init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval);
+    LogManager::getInstance().init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, rollMode);
 }
 
 /**
@@ -49,4 +51,13 @@ void setRootLoggerLevel(Level level)
 Logger::ptr getLogger(const std::string &name)
 {
     return LogManager::getInstance().getLogger(name);
+}
+
+/**
+ * @brief 设置日志滚动模式
+ * @param mode 滚动模式
+ */
+void setLogRollMode(LogFile::RollMode mode)
+{
+    LogManager::getInstance().setRollMode(mode);
 }

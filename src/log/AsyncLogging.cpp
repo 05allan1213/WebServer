@@ -103,7 +103,7 @@ void AsyncLogging::threadFunc()
 
     // 创建LogFile对象负责实际的文件操作
     // 启用自适应刷新和分级刷新策略
-    LogFile output(m_basename, m_rollSize, m_flushInterval, true, true);
+    LogFile output(m_basename, m_rollSize, LogFile::RollMode::SIZE, m_flushInterval, true, true);
 
     // 准备两个空闲缓冲区，用于与前端交换
     BufferPtr newBuffer1(new Buffer(m_bufferSize));
