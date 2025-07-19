@@ -33,7 +33,7 @@ EPollPoller::~EPollPoller()
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
 {
     // 在高并发场景下，用LOG_DEBUG输出日志更为合理
-    DLOG_INFO << "func=" << __FUNCTION__ << " => fd total count:" << channels_.size();
+    DLOG_DEBUG << "func=" << __FUNCTION__ << " => fd total count:" << channels_.size();
     // 调用 epoll_wait 等待事件发生
     int numEvents = ::epoll_wait(epollfd_, &*events_.begin(), static_cast<int>(events_.size()), timeoutMs);
     // 立刻保存 errno，防止后续操作（如日志、时间获取）修改它

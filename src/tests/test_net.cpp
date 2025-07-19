@@ -2,11 +2,12 @@
 #include <string>
 #include "net/TcpServer.h"
 #include "log/Log.h"
+#include "base/Config.h"
 
 class EchoServer
 {
 public:
-    EchoServer(EventLoop *loop, const InetAddress &addr, const std::string &name)
+    EchoServer(EventLoop *loop, const InetAddress &addr, const std::string &name, int threadNum)
         : server_(loop, addr, name), loop_(loop)
     {
         // 注册回调函数
@@ -17,7 +18,7 @@ public:
                                              std::placeholders::_2, std::placeholders::_3));
 
         // 设置合适的loop线程数量 loopthread
-        server_.setThreadNum(3);
+        server_.setThreadNum(threadNum);
     }
     void start() { server_.start(); }
 
@@ -49,11 +50,17 @@ private:
 
 int main()
 {
+    Config::getInstance().load("configs/config.yml");
+    const auto &config = Config::getInstance();
+    std::string ip = config.getNetworkIp();
+    int port = config.getNetworkPort();
+    int threadNum = config.getNetworkThreadNum();
+
     EventLoop loop;
-    InetAddress addr(8000);
-    EchoServer server(&loop, addr, "EchoServer-01");
+    InetAddress addr(port, ip);
+    EchoServer server(&loop, addr, "EchoServer-01", threadNum);
     server.start();
-    loop.loop(); // 启动mainLoop的底层Poller
+    loop.loop();
 
     return 0;
 }

@@ -5,6 +5,7 @@
 #include <thread>
 #include "log/Log.h"
 #include "TcpConnection.h"
+#include "base/Config.h"
 
 // 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
@@ -17,8 +18,7 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
 }
 
 TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::string &nameArg,
-                     Option option, const std::string &logBasename, off_t logRollSize,
-                     int logFlushInterval, LogFile::RollMode logRollMode)
+                     Option option)
     : loop_(CheckLoopNotNull(loop)),
       ipPort_(listenAddr.toIpPort()),
       name_(nameArg),
@@ -33,16 +33,32 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
       nextConnId_(1),
       started_(0)
 {
+    // 自动加载配置文件
+    Config::getInstance().load("configs/config.yml");
     // 确保日志目录存在
     system("mkdir -p logs");
 
     // 等待异步日志系统启动完成
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
+    // 从配置获取日志参数
+    const auto &config = Config::getInstance();
+    std::string rollModeStr = config.getLogRollMode();
+    LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY;
+    if (rollModeStr == "SIZE")
+        rollMode = LogFile::RollMode::SIZE;
+    else if (rollModeStr == "HOURLY")
+        rollMode = LogFile::RollMode::HOURLY;
+    else if (rollModeStr == "SIZE_HOURLY")
+        rollMode = LogFile::RollMode::SIZE_HOURLY;
     // 初始化日志系统
-    initLogSystem(logBasename, logRollSize, logFlushInterval, logRollMode);
+    initLogSystem();
     acceptor_->setNewConnectionCallback(
         std::bind(&TcpServer::newConnection, this, std::placeholders::_1, std::placeholders::_2));
+
+    std::string ip = config.getNetworkIp();
+    int port = config.getNetworkPort();
+    InetAddress addr(port, ip);
 }
 
 TcpServer::~TcpServer()

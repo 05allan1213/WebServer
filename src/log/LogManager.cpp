@@ -8,6 +8,7 @@
 #include <chrono>
 #include <atomic>
 #include <cstdlib>
+#include "base/Config.h"
 
 // 全局异步日志对象，仅在LogManager内部使用
 static std::unique_ptr<AsyncLogging> g_asyncLog;
@@ -257,11 +258,33 @@ void LogManager::init(const std::string &asyncLogBasename,
         pair.second->clearAppenders();
     }
 
+    // 读取配置
+    const auto &config = Config::getInstance();
+    bool enableFile = config.getLogEnableFile();
+    std::string fileLevelStr = config.getLogFileLevel();
+    std::string consoleLevelStr = config.getLogConsoleLevel();
+
+    // 字符串转Level
+    auto parseLevel = [](const std::string &str)
+    {
+        if (str == "DEBUG")
+            return Level::DEBUG;
+        if (str == "INFO")
+            return Level::INFO;
+        if (str == "WARN")
+            return Level::WARN;
+        if (str == "ERROR")
+            return Level::ERROR;
+        if (str == "FATAL")
+            return Level::FATAL;
+        return Level::DEBUG;
+    };
+
     // --- 3. 设置默认控制台输出 ---
-    // 无论是否启用异步日志，都默认添加控制台输出
     LogAppenderPtr consoleAppender(new StdoutLogAppender());
     consoleAppender->setFormatter(
         std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
+    consoleAppender->setLevel(parseLevel(consoleLevelStr));
     m_root->addAppender(consoleAppender);
 
     // --- 4. 配置日志级别 ---
@@ -271,8 +294,8 @@ void LogManager::init(const std::string &asyncLogBasename,
     m_root->setLevel(Level::DEBUG);
 #endif
 
-    // --- 5. 配置异步文件输出 (如果提供了文件名) ---
-    if (!asyncLogBasename.empty())
+    // --- 5. 配置异步文件输出 (如果提供了文件名且enableFile为true) ---
+    if (enableFile && !asyncLogBasename.empty())
     {
         // 创建日志目录
         size_t pos = asyncLogBasename.find_last_of('/');
@@ -303,8 +326,8 @@ void LogManager::init(const std::string &asyncLogBasename,
             auto fileAppender = std::make_shared<FileLogAppender>(asyncLogBasename + ".log");
             fileAppender->setFormatter(
                 std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
-            // 设置滚动模式
             fileAppender->setRollMode(rollMode);
+            fileAppender->setLevel(parseLevel(fileLevelStr));
             m_root->addAppender(fileAppender);
 
             // 记录启动信息

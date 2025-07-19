@@ -1,0 +1,13 @@
+log:
+  basename: logs/server
+  roll_size: 1048576
+  flush_interval: 1
+  roll_mode: SIZE_HOURLY
+  enable_file: true
+  file_level: INFO
+  console_level: WARN
+
+network:
+  ip: 0.0.0.0
+  port: 8080
+  thread_num: 3

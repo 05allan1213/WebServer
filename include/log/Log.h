@@ -16,6 +16,7 @@
 #include "LogEventWrap.h"
 #include "LogAppender.h"
 #include "LogFilter.h"
+#include "base/Config.h"
 
 /**
  * @brief 初始化日志系统
@@ -25,10 +26,12 @@
  * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
  * @param rollMode 日志滚动模式，默认按大小滚动
  */
-void initLogSystem(const std::string &asyncLogBasename = "logs/server",
-                   off_t asyncLogRollSize = 10 * 1024 * 1024,
-                   int asyncLogFlushInterval = 1,
-                   LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY);
+void initLogSystem(const std::string &asyncLogBasename, size_t asyncLogRollSize, uint32_t asyncLogFlushInterval, LogFile::RollMode rollMode);
+
+/**
+ * @brief 初始化日志系统（自动从配置获取参数）
+ */
+void initLogSystem();
 
 /**
  * @brief 设置日志器的级别

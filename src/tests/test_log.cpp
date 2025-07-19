@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     // 初始化LogManager - 这是配置日志系统的唯一入口
     // 使用综合滚动策略：按大小和每小时滚动
     // 为了测试方便，设置较小的滚动大小（1MB）
-    initLogSystem("logs/server", 1 * 1024 * 1024, 1, LogFile::RollMode::SIZE_HOURLY);
+    initLogSystem();
 
     // 等待异步日志系统启动完成
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

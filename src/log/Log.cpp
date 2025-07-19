@@ -1,4 +1,5 @@
 #include "Log.h"
+#include "base/Config.h"
 
 /**
  * @brief 初始化日志系统
@@ -14,6 +15,30 @@ void initLogSystem(const std::string &asyncLogBasename,
                    LogFile::RollMode rollMode)
 {
     LogManager::getInstance().init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, rollMode);
+}
+
+/**
+ * @brief 初始化日志系统
+ * 如果日志系统已经初始化，将重新配置它
+ * 自动从Config获取参数并调用有参版本
+ */
+void initLogSystem()
+{
+    Config::getInstance().load("configs/config.yml");
+    const auto &config = Config::getInstance();
+    bool enableFile = config.getLogEnableFile();
+    std::string fileLevelStr = config.getLogFileLevel();
+    std::string consoleLevelStr = config.getLogConsoleLevel();
+    // 解析字符串为Level枚举，并设置到Logger/LogAppender
+    std::string rollModeStr = config.getLogRollMode();
+    LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY;
+    if (rollModeStr == "SIZE")
+        rollMode = LogFile::RollMode::SIZE;
+    else if (rollModeStr == "HOURLY")
+        rollMode = LogFile::RollMode::HOURLY;
+    else if (rollModeStr == "SIZE_HOURLY")
+        rollMode = LogFile::RollMode::SIZE_HOURLY;
+    initLogSystem(config.getLogBasename(), config.getLogRollSize(), config.getLogFlushInterval(), rollMode);
 }
 
 /**
