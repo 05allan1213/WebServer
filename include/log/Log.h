@@ -25,7 +25,7 @@
  * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
  * @param rollMode 日志滚动模式，默认按大小滚动
  */
-void initLogSystem(const std::string &asyncLogBasename = "../logs/app",
+void initLogSystem(const std::string &asyncLogBasename = "logs/server",
                    off_t asyncLogRollSize = 10 * 1024 * 1024,
                    int asyncLogFlushInterval = 1,
                    LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY);

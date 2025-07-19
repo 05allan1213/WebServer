@@ -29,7 +29,7 @@ typedef std::shared_ptr<LogAppender> LogAppenderPtr;
  *
  * 每个Logger持有多个LogAppender，可以同时将日志输出到不同目标(如控制台、文件等)
  */
-class Logger : public std::enable_shared_from_this<Logger>, public noncopyable
+class Logger : public std::enable_shared_from_this<Logger>, private noncopyable
 {
 public:
     // 使用智能指针管理Logger对象

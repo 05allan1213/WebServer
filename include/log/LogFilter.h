@@ -14,7 +14,7 @@
  * LogFilter允许基于不同条件过滤日志，如内容匹配、级别、文件名等。
  * 使用策略模式设计，可灵活扩展不同的过滤规则。
  */
-class LogFilter : public noncopyable
+class LogFilter : private noncopyable
 {
 public:
     using ptr = std::shared_ptr<LogFilter>;

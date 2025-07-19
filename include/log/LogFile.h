@@ -18,7 +18,7 @@
  *
  * 它作为AsyncLogging的底层支持，处理真正的文件I/O操作
  */
-class LogFile : public noncopyable
+class LogFile : private noncopyable
 {
 public:
     using ptr = std::shared_ptr<LogFile>;

@@ -19,7 +19,7 @@
  * 2. 专门的后台线程负责将缓冲区中的日志写入磁盘
  * 3. 双缓冲机制最小化了锁竞争，提高了并发性能
  */
-class AsyncLogging : public noncopyable
+class AsyncLogging : private noncopyable
 {
 public:
     /**

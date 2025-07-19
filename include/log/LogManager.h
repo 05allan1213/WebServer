@@ -17,7 +17,7 @@
  * 同时，它实现了日志器的层次化管理，支持从配置文件加载配置。
  * 默认使用异步日志模式，提供监控机制确保日志系统稳定运行。
  */
-class LogManager : public noncopyable
+class LogManager : private noncopyable
 {
 public:
     /**

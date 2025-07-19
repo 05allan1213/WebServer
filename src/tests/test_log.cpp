@@ -25,12 +25,12 @@ int main(int argc, char *argv[])
     std::cout << "======== 日志系统功能测试 ========" << std::endl;
 
     // 确保日志目录存在
-    system("mkdir -p ../logs");
+    system("mkdir -p logs");
 
     // 初始化LogManager - 这是配置日志系统的唯一入口
     // 使用综合滚动策略：按大小和每小时滚动
     // 为了测试方便，设置较小的滚动大小（1MB）
-    initLogSystem("../logs/test", 1 * 1024 * 1024, 1, LogFile::RollMode::SIZE_HOURLY);
+    initLogSystem("logs/server", 1 * 1024 * 1024, 1, LogFile::RollMode::SIZE_HOURLY);
 
     // 等待异步日志系统启动完成
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "日志已写入，请检查日志文件是否已滚动" << std::endl;
-    std::cout << "日志文件位置: ../logs/test*.log" << std::endl;
+    std::cout << "日志文件位置: logs/server*" << std::endl;
 
     // 等待所有日志写入完成
     std::cout << "\n等待2秒，确保所有异步日志都已落盘..." << std::endl;
