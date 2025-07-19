@@ -2,7 +2,7 @@
 
 #include <functional>
 #include <strings.h>
-
+#include <thread>
 #include "log/Log.h"
 #include "TcpConnection.h"
 
@@ -17,7 +17,8 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
 }
 
 TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::string &nameArg,
-                     Option option)
+                     Option option, const std::string &logBasename, off_t logRollSize,
+                     int logFlushInterval, LogFile::RollMode logRollMode)
     : loop_(CheckLoopNotNull(loop)),
       ipPort_(listenAddr.toIpPort()),
       name_(nameArg),
@@ -32,6 +33,14 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
       nextConnId_(1),
       started_(0)
 {
+    // 确保日志目录存在
+    system("mkdir -p logs");
+
+    // 等待异步日志系统启动完成
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 初始化日志系统
+    initLogSystem(logBasename, logRollSize, logFlushInterval, logRollMode);
     acceptor_->setNewConnectionCallback(
         std::bind(&TcpServer::newConnection, this, std::placeholders::_1, std::placeholders::_2));
 }

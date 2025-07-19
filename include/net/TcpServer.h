@@ -14,6 +14,7 @@
 #include "InetAddress.h"
 #include "TcpConnection.h"
 #include "base/noncopyable.h"
+#include "log/Log.h"
 
 class TcpServer : noncopyable
 {
@@ -27,7 +28,11 @@ public:
     };
 
     TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::string &nameArg,
-              Option option = kNoReusePort);
+              Option option = kNoReusePort,
+              const std::string &logBasename = "logs/server",
+              off_t logRollSize = 10 * 1024 * 1024,
+              int logFlushInterval = 1,
+              LogFile::RollMode logRollMode = LogFile::RollMode::SIZE_HOURLY);
     ~TcpServer();
 
     // 设置线程初始化回调
