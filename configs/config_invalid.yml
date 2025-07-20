@@ -1,0 +1,24 @@
+base:
+  buffer:
+    initial_size: -1  # 无效：必须大于0
+    max_size: 65536
+    growth_factor: 1  # 无效：必须大于1
+
+log:
+  basename: ""  # 无效：不能为空
+  roll_size: 1048576
+  flush_interval: 1
+  roll_mode: INVALID_MODE  # 无效：不是有效的滚动模式
+  enable_file: true
+  file_level: INVALID_LEVEL  # 无效：不是有效的日志级别
+  console_level: WARN
+
+network:
+  ip: ""  # 无效：不能为空
+  port: 80  # 无效：小于1024
+  thread_pool:
+    thread_num: 0  # 无效：必须大于0
+    queue_size: 1000
+    keep_alive_time: 60
+    max_idle_threads: 2  # 无效：小于thread_num
+    min_idle_threads: 5  # 无效：大于max_idle_threads 

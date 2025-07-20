@@ -33,7 +33,40 @@ int main()
     initLogSystem();
     std::cout << "日志系统初始化完成" << std::endl;
 
+    // 测试无效配置
+    std::cout << "\n=== 测试无效配置 ===" << std::endl;
+    try
+    {
+        std::cout << "测试无效的BaseConfig配置..." << std::endl;
+        BaseConfig::getInstance().load("configs/config_invalid.yml");
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "BaseConfig验证失败: " << e.what() << std::endl;
+    }
+
+    try
+    {
+        std::cout << "测试无效的LogConfig配置..." << std::endl;
+        LogConfig::getInstance().load("configs/config_invalid.yml");
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "LogConfig验证失败: " << e.what() << std::endl;
+    }
+
+    try
+    {
+        std::cout << "测试无效的NetworkConfig配置..." << std::endl;
+        NetworkConfig::getInstance().load("configs/config_invalid.yml");
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "NetworkConfig验证失败: " << e.what() << std::endl;
+    }
+
     // 测试BaseConfig (Buffer配置)
+    std::cout << "\n=== 测试有效配置 ===" << std::endl;
     std::cout << "读取BaseConfig配置..." << std::endl;
     BaseConfig::getInstance().load("configs/config.yml");
     const auto &baseConfig = BaseConfig::getInstance();

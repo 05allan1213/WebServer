@@ -21,6 +21,45 @@ public:
         DLOG_INFO << "BaseConfig: 读取到配置 - buffer.initial_size=" << initialSize
                   << ", buffer.max_size=" << maxSize
                   << ", buffer.growth_factor=" << growthFactor;
+
+        // 验证配置
+        validateConfig(initialSize, maxSize, growthFactor);
+    }
+
+private:
+    void validateConfig(int initialSize, int maxSize, int growthFactor)
+    {
+        DLOG_INFO << "BaseConfig: 开始验证配置...";
+
+        // 验证初始大小
+        if (initialSize <= 0)
+        {
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.initial_size必须大于0，当前值: " << initialSize;
+            throw std::invalid_argument("buffer.initial_size必须大于0");
+        }
+
+        // 验证最大大小
+        if (maxSize <= 0)
+        {
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.max_size必须大于0，当前值: " << maxSize;
+            throw std::invalid_argument("buffer.max_size必须大于0");
+        }
+
+        // 验证增长因子
+        if (growthFactor <= 1)
+        {
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.growth_factor必须大于1，当前值: " << growthFactor;
+            throw std::invalid_argument("buffer.growth_factor必须大于1");
+        }
+
+        // 验证大小关系
+        if (initialSize > maxSize)
+        {
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.initial_size不能大于buffer.max_size";
+            throw std::invalid_argument("buffer.initial_size不能大于buffer.max_size");
+        }
+
+        DLOG_INFO << "BaseConfig: 配置验证通过";
     }
 };
 

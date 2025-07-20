@@ -20,4 +20,9 @@ public:
 private:
     LogConfig() = default;
     static LogConfig instance_;
+
+    // 配置验证方法
+    void validateConfig(const std::string &basename, int rollSize, int flushInterval,
+                        const std::string &rollMode, const std::string &fileLevel,
+                        const std::string &consoleLevel);
 };

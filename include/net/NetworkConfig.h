@@ -22,4 +22,8 @@ public:
 private:
     NetworkConfig() = default;
     static NetworkConfig instance_;
+
+    // 配置验证方法
+    void validateConfig(const std::string &ip, int port, int threadNum, int queueSize,
+                        int keepAliveTime, int maxIdleThreads, int minIdleThreads);
 };
