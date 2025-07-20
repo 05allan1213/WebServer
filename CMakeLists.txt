@@ -39,8 +39,11 @@ find_package(yaml-cpp REQUIRED)
 #add_executable(test_log src/tests/test_log.cpp) # 测试日志模块
 #target_link_libraries(test_log PRIVATE yaml-cpp::yaml-cpp base log) # 链接 log 库
 
-add_executable(test_net src/tests/test_net.cpp)
-target_link_libraries(test_net PRIVATE yaml-cpp::yaml-cpp base log net)
+#add_executable(test_net src/tests/test_net.cpp)
+#target_link_libraries(test_net PRIVATE yaml-cpp::yaml-cpp base log net)
 
 #add_executable(test_config src/tests/test_config.cpp)
 #target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base log net)
+
+add_executable(test_http src/tests/test_http.cpp)
+target_link_libraries(test_http PRIVATE yaml-cpp::yaml-cpp base log net http)

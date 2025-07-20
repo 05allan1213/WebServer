@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <any>
 
 #include "base/Buffer.h"
 #include "Callbacks.h"
@@ -153,6 +154,11 @@ public:
      */
     void connectDestroyed(); // 连接销毁前调用，从Poller移除Channel
 
+    // 上下文存取接口
+    void setContext(const std::any &context) { context_ = context; }
+    std::any *getMutableContext() { return &context_; }
+    const std::any &getContext() const { return context_; }
+
 private:
     /**
      * @brief 连接状态枚举
@@ -239,4 +245,5 @@ private:
     /** @brief 数据缓冲区 */
     Buffer inputBuffer_;  /**< 接收缓冲区，存储从socket读取的数据 */
     Buffer outputBuffer_; /**< 发送缓冲区，存储待发送到socket的数据 */
+    std::any context_;
 };
