@@ -100,6 +100,12 @@ public:
     std::string getConsoleLevel() const;
 
     /**
+     * @brief 获取是否启用异步日志
+     * @return 如果启用异步日志返回true，否则返回false
+     */
+    bool getEnableAsync() const;
+
+    /**
      * @brief 获取LogConfig单例实例
      * @return LogConfig的引用
      *

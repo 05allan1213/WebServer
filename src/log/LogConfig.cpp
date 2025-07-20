@@ -36,6 +36,11 @@ void LogConfig::load(const std::string &filename)
     int flushInterval = config["log"]["flush_interval"].as<int>();
     std::string rollMode = config["log"]["roll_mode"].as<std::string>();
     bool enableFile = config["log"]["enable_file"].as<bool>();
+    bool enableAsync = true;
+    if (config["log"]["enable_async"])
+    {
+        enableAsync = config["log"]["enable_async"].as<bool>();
+    }
     std::string fileLevel = config["log"]["file_level"].as<std::string>();
     std::string consoleLevel = config["log"]["console_level"].as<std::string>();
 
@@ -44,6 +49,7 @@ void LogConfig::load(const std::string &filename)
               << ", flush_interval=" << flushInterval
               << ", roll_mode=" << rollMode
               << ", enable_file=" << enableFile
+              << ", enable_async=" << enableAsync
               << ", file_level=" << fileLevel
               << ", console_level=" << consoleLevel;
 
@@ -137,6 +143,16 @@ std::string LogConfig::getRollMode() const
 bool LogConfig::getEnableFile() const
 {
     return BaseConfig::getInstance().getConfigNode()["log"]["enable_file"].as<bool>();
+}
+
+bool LogConfig::getEnableAsync() const
+{
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (node["log"] && node["log"]["enable_async"])
+    {
+        return node["log"]["enable_async"].as<bool>();
+    }
+    return true; // 默认启用异步
 }
 
 std::string LogConfig::getFileLevel() const

@@ -209,6 +209,13 @@ FileLogAppender::FileLogAppender(const std::string &filename)
     // 设置一个默认的格式化器
     m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S} [%p] %c: %m%n"));
 
+    // 如果已经启用了全局异步输出函数，则只负责将日志转发给异步系统，
+    // 不再打开本地文件，避免生成重复的同步日志文件。
+    if (g_asyncOutputFunc)
+    {
+        return;
+    }
+
     // 确保目录存在
     size_t pos = filename.find_last_of('/');
     if (pos != std::string::npos)
@@ -231,7 +238,6 @@ FileLogAppender::FileLogAppender(const std::string &filename)
                   << " (" << ec.message() << ")" << std::endl;
 
         // 尝试创建一个空文件
-        // 这可能解决权限问题或文件不存在的情况
         std::string testCmd = "touch " + filename;
         system(testCmd.c_str());
 

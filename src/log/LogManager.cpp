@@ -261,6 +261,7 @@ void LogManager::init(const std::string &asyncLogBasename,
     // 读取配置
     const auto &logConfig = LogConfig::getInstance();
     bool enableFile = logConfig.getEnableFile();
+    bool enableAsync = logConfig.getEnableAsync(); // 新增: 是否启用异步
     std::string fileLevelStr = logConfig.getFileLevel();
     std::string consoleLevelStr = logConfig.getConsoleLevel();
 
@@ -294,7 +295,7 @@ void LogManager::init(const std::string &asyncLogBasename,
     m_root->setLevel(Level::DEBUG);
 #endif
 
-    // --- 5. 配置异步文件输出 (如果提供了文件名且enableFile为true) ---
+    // --- 5. 根据配置决定文件输出方式 ---
     if (enableFile && !asyncLogBasename.empty())
     {
         // 创建日志目录
@@ -305,24 +306,43 @@ void LogManager::init(const std::string &asyncLogBasename,
             system(("mkdir -p " + dir).c_str());
         }
 
-        try
+        if (enableAsync)
         {
-            // 创建并启动异步日志
-            g_asyncLog = std::make_unique<AsyncLogging>(
-                asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192);
-            g_asyncLog->start();
-
-            // 注意：AsyncLogging内部会创建LogFile，但我们无法直接设置其滚动模式
-            // 因此需要在后续通过FileLogAppender来设置
-
-            // 设置全局异步输出函数指针
-            g_asyncOutputFunc = [](const char *msg, int len)
+            // -------- 仅异步输出 --------
+            try
             {
-                if (g_asyncLog)
-                    g_asyncLog->append(msg, len);
-            };
+                g_asyncLog = std::make_unique<AsyncLogging>(
+                    asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, 8192);
+                g_asyncLog->start();
 
-            // 为root日志器添加文件输出目标
+                // 设置全局异步输出函数指针
+                g_asyncOutputFunc = [](const char *msg, int len)
+                {
+                    if (g_asyncLog)
+                        g_asyncLog->append(msg, len);
+                };
+
+                // 创建FileLogAppender，但由于g_asyncOutputFunc已设置，它不会打开本地文件，只转发到异步日志
+                auto fileAppender = std::make_shared<FileLogAppender>(asyncLogBasename + ".log");
+                fileAppender->setFormatter(
+                    std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
+                fileAppender->setRollMode(rollMode);
+                fileAppender->setLevel(parseLevel(fileLevelStr));
+                m_root->addAppender(fileAppender);
+
+                LOG_INFO(m_root) << "异步日志系统已启动 - 文件: " << asyncLogBasename
+                                 << ", 滚动大小: " << (asyncLogRollSize / 1024 / 1024) << "MB"
+                                 << ", 刷新间隔: " << asyncLogFlushInterval << "秒";
+            }
+            catch (const std::exception &e)
+            {
+                g_asyncOutputFunc = nullptr;
+                std::cerr << "异步日志系统初始化失败: " << e.what() << std::endl;
+            }
+        }
+        else
+        {
+            // -------- 仅同步文件输出 --------
             auto fileAppender = std::make_shared<FileLogAppender>(asyncLogBasename + ".log");
             fileAppender->setFormatter(
                 std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
@@ -330,15 +350,7 @@ void LogManager::init(const std::string &asyncLogBasename,
             fileAppender->setLevel(parseLevel(fileLevelStr));
             m_root->addAppender(fileAppender);
 
-            // 记录启动信息
-            LOG_INFO(m_root) << "异步日志系统已启动 - 文件: " << asyncLogBasename
-                             << ", 滚动大小: " << (asyncLogRollSize / 1024 / 1024) << "MB"
-                             << ", 刷新间隔: " << asyncLogFlushInterval << "秒";
-        }
-        catch (const std::exception &e)
-        {
-            g_asyncOutputFunc = nullptr;
-            std::cerr << "异步日志系统初始化失败: " << e.what() << std::endl;
+            LOG_INFO(m_root) << "同步日志系统已启动 - 文件: " << asyncLogBasename;
         }
     }
 
@@ -386,37 +398,58 @@ bool LogManager::reinitializeAsyncLogging()
         std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
     m_root->addAppender(consoleAppender);
 
-    // 根据保存的配置重新初始化文件Appender
+    // 根据当前配置决定同步/异步
+    const auto &logConfig = LogConfig::getInstance();
+    bool enableFile = logConfig.getEnableFile();
+    bool enableAsync = logConfig.getEnableAsync();
+
+    if (!enableFile)
+    {
+        return true; // 只保留控制台输出
+    }
+
     if (!m_logBasename.empty())
     {
-        try
+        if (enableAsync)
         {
-            // 创建并启动异步日志
-            g_asyncLog = std::make_unique<AsyncLogging>(
-                m_logBasename, m_rollSize, m_flushInterval, 8192);
-            g_asyncLog->start();
-
-            // 设置全局异步输出函数指针
-            g_asyncOutputFunc = [](const char *msg, int len)
+            // -------- 重新创建异步日志 --------
+            try
             {
-                if (g_asyncLog)
-                    g_asyncLog->append(msg, len);
-            };
+                g_asyncLog = std::make_unique<AsyncLogging>(m_logBasename, m_rollSize, m_flushInterval, 8192);
+                g_asyncLog->start();
 
-            // 为root日志器添加文件输出目标
+                g_asyncOutputFunc = [](const char *msg, int len)
+                {
+                    if (g_asyncLog)
+                        g_asyncLog->append(msg, len);
+                };
+
+                // 创建FileLogAppender，但由于g_asyncOutputFunc已设置，它不会打开本地文件，只转发到异步日志
+                auto fileAppender = std::make_shared<FileLogAppender>(m_logBasename + ".log");
+                fileAppender->setFormatter(
+                    std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
+                fileAppender->setRollMode(m_rollMode);
+                m_root->addAppender(fileAppender);
+
+                LOG_INFO(m_root) << "异步日志系统已根据新配置重新初始化";
+            }
+            catch (const std::exception &e)
+            {
+                g_asyncOutputFunc = nullptr;
+                std::cerr << "异步日志系统重新初始化失败: " << e.what() << std::endl;
+                return false;
+            }
+        }
+        else
+        {
+            // -------- 重新创建同步文件输出 --------
             auto fileAppender = std::make_shared<FileLogAppender>(m_logBasename + ".log");
             fileAppender->setFormatter(
                 std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S.%f} [%p] [%t] %c %f:%l - %m%n"));
-            fileAppender->setRollMode(m_rollMode); // 使用当前的滚动模式
+            fileAppender->setRollMode(m_rollMode);
             m_root->addAppender(fileAppender);
 
-            LOG_INFO(m_root) << "异步日志系统已根据新配置重新初始化";
-        }
-        catch (const std::exception &e)
-        {
-            g_asyncOutputFunc = nullptr;
-            std::cerr << "异步日志系统重新初始化失败: " << e.what() << std::endl;
-            return false;
+            LOG_INFO(m_root) << "同步日志系统已根据新配置重新初始化";
         }
     }
     return true;

@@ -10,6 +10,7 @@ log:
   flush_interval: 1
   roll_mode: SIZE_HOURLY
   enable_file: true
+  enable_async: true   # false=同步，true=异步
   file_level: DEBUG
   console_level: WARN
 

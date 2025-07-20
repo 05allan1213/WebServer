@@ -83,6 +83,7 @@ int main()
     std::cout << "log.flush_interval: " << logConfig.getFlushInterval() << std::endl;
     std::cout << "log.roll_mode: " << logConfig.getRollMode() << std::endl;
     std::cout << "log.enable_file: " << logConfig.getEnableFile() << std::endl;
+    std::cout << "log.enable_async: " << logConfig.getEnableAsync() << std::endl;
     std::cout << "log.file_level: " << logConfig.getFileLevel() << std::endl;
     std::cout << "log.console_level: " << logConfig.getConsoleLevel() << std::endl;
 
