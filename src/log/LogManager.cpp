@@ -2,13 +2,13 @@
 #include "AsyncLogging.h"
 #include "LogEvent.h"
 #include "LogEventWrap.h"
+#include "log/LogConfig.h"
 #include <iostream>
 #include <memory>
 #include <thread>
 #include <chrono>
 #include <atomic>
 #include <cstdlib>
-#include "base/Config.h"
 
 // 全局异步日志对象，仅在LogManager内部使用
 static std::unique_ptr<AsyncLogging> g_asyncLog;
@@ -259,10 +259,10 @@ void LogManager::init(const std::string &asyncLogBasename,
     }
 
     // 读取配置
-    const auto &config = Config::getInstance();
-    bool enableFile = config.getLogEnableFile();
-    std::string fileLevelStr = config.getLogFileLevel();
-    std::string consoleLevelStr = config.getLogConsoleLevel();
+    const auto &logConfig = LogConfig::getInstance();
+    bool enableFile = logConfig.getEnableFile();
+    std::string fileLevelStr = logConfig.getFileLevel();
+    std::string consoleLevelStr = logConfig.getConsoleLevel();
 
     // 字符串转Level
     auto parseLevel = [](const std::string &str)

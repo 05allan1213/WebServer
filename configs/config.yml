@@ -1,13 +1,24 @@
+base:
+  buffer:
+    initial_size: 1024
+    max_size: 65536
+    growth_factor: 2
+
 log:
   basename: logs/server
   roll_size: 1048576
   flush_interval: 1
   roll_mode: SIZE_HOURLY
   enable_file: true
-  file_level: INFO
+  file_level: DEBUG
   console_level: WARN
 
 network:
   ip: 0.0.0.0
   port: 8080
-  thread_num: 3
+  thread_pool:
+    thread_num: 3
+    queue_size: 1000
+    keep_alive_time: 60
+    max_idle_threads: 5
+    min_idle_threads: 1

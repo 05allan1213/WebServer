@@ -44,4 +44,4 @@ find_package(yaml-cpp REQUIRED)
 #target_link_libraries(test_net PRIVATE yaml-cpp::yaml-cpp base log net)
 
 add_executable(test_config src/tests/test_config.cpp)
-target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base)
+target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base log net)

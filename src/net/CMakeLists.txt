@@ -7,5 +7,8 @@ add_library(net STATIC ${NET_SRC_FILES})
 # 添加头文件搜索路径
 target_include_directories(net PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
+# 添加 yaml-cpp 依赖
+find_package(yaml-cpp REQUIRED)
+
 # 添加依赖
-target_link_libraries(net PRIVATE base log)
+target_link_libraries(net PRIVATE base log yaml-cpp::yaml-cpp)

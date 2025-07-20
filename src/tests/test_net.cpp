@@ -2,7 +2,7 @@
 #include <string>
 #include "net/TcpServer.h"
 #include "log/Log.h"
-#include "base/Config.h"
+#include "net/NetworkConfig.h"
 
 class EchoServer
 {
@@ -50,17 +50,17 @@ private:
 
 int main()
 {
-    Config::getInstance().load("configs/config.yml");
-    const auto &config = Config::getInstance();
-    std::string ip = config.getNetworkIp();
-    int port = config.getNetworkPort();
-    int threadNum = config.getNetworkThreadNum();
+    NetworkConfig::getInstance().load("configs/config.yml");
+    const auto &netConfig = NetworkConfig::getInstance();
+    std::string ip = netConfig.getIp();
+    int port = netConfig.getPort();
+    int threadNum = netConfig.getThreadNum();
 
     EventLoop loop;
     InetAddress addr(port, ip);
     EchoServer server(&loop, addr, "EchoServer-01", threadNum);
     server.start();
-    loop.loop();
+    loop.loop(); // 启动mainLoop的底层Poller
 
     return 0;
 }
