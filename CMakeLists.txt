@@ -22,12 +22,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin) # 可执行文件 (.
 # --- 设置头文件搜索路径 ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/include/base)
-include_directories(${PROJECT_SOURCE_DIR}/include/config)
-include_directories(${PROJECT_SOURCE_DIR}/include/db)
-include_directories(${PROJECT_SOURCE_DIR}/include/http)
 include_directories(${PROJECT_SOURCE_DIR}/include/log)
 include_directories(${PROJECT_SOURCE_DIR}/include/net)
-include_directories(${PROJECT_SOURCE_DIR}/include/threadpool)
+include_directories(${PROJECT_SOURCE_DIR}/include/config)
+include_directories(${PROJECT_SOURCE_DIR}/include/http)
+include_directories(${PROJECT_SOURCE_DIR}/include/db)
 include_directories(${PROJECT_SOURCE_DIR}/include/timer)
 
 # 添加子目录

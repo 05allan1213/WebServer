@@ -1,12 +1,24 @@
 #include "log/LogConfig.h"
 #include "log/Log.h"
 
+/**
+ * @brief 获取LogConfig单例实例
+ * @return LogConfig的引用
+ *
+ * 使用局部静态变量实现线程安全的单例模式
+ */
 LogConfig &LogConfig::getInstance()
 {
     static LogConfig instance;
     return instance;
 }
 
+/**
+ * @brief 加载日志配置文件
+ * @param filename 配置文件名
+ *
+ * 解析YAML配置文件，读取日志相关参数并进行验证
+ */
 void LogConfig::load(const std::string &filename)
 {
     DLOG_INFO << "LogConfig: 开始加载配置文件 " << filename;
@@ -34,6 +46,17 @@ void LogConfig::load(const std::string &filename)
     validateConfig(basename, rollSize, flushInterval, rollMode, fileLevel, consoleLevel);
 }
 
+/**
+ * @brief 验证日志配置参数
+ * @param basename 日志文件基础名称
+ * @param rollSize 滚动大小
+ * @param flushInterval 刷新间隔
+ * @param rollMode 滚动模式
+ * @param fileLevel 文件日志级别
+ * @param consoleLevel 控制台日志级别
+ *
+ * 对每个配置参数进行严格验证，确保配置的有效性
+ */
 void LogConfig::validateConfig(const std::string &basename, int rollSize, int flushInterval,
                                const std::string &rollMode, const std::string &fileLevel,
                                const std::string &consoleLevel)
