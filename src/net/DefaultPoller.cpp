@@ -2,7 +2,7 @@
 #include "Poller.h"
 #include "EPollPoller.h"
 
-Poller *Poller::newDefaultPoller(EventLoop *loop)
+Poller *Poller::newDefaultPoller(EventLoop *loop, const std::string &epollMode)
 {
     if (::getenv("MUDUO_USE_POLL"))
     {
@@ -10,6 +10,6 @@ Poller *Poller::newDefaultPoller(EventLoop *loop)
     }
     else
     {
-        return new EPollPoller(loop); // 生成epoll实例
+        return new EPollPoller(loop, epollMode); // 生成epoll实例，支持ET/LT
     }
 }

@@ -75,6 +75,17 @@ public:
     int getThreadPoolMinIdleThreads() const;
 
     /**
+     * @brief 获取epoll模式（ET/LT）
+     * @return "ET" 或 "LT"
+     */
+    std::string getEpollMode() const;
+    /**
+     * @brief 是否为ET（边缘触发）模式
+     * @return true=ET，false=LT
+     */
+    bool isET() const;
+
+    /**
      * @brief 获取NetworkConfig单例实例
      * @return NetworkConfig的引用
      *
@@ -107,4 +118,6 @@ private:
      */
     void validateConfig(const std::string &ip, int port, int threadNum, int queueSize,
                         int keepAliveTime, int maxIdleThreads, int minIdleThreads);
+
+    std::string epollMode_ = "LT"; ///< epoll触发模式，ET=边缘触发，LT=水平触发
 };

@@ -3,10 +3,10 @@
 #include "EventLoopThread.h"
 #include "log/Log.h"
 
-EventLoopThreadPool::EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg)
-    : baseLoop_(baseLoop), name_(nameArg), started_(false), threadNum_(0), next_(0)
+EventLoopThreadPool::EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg, const std::string &epollMode)
+    : baseLoop_(baseLoop), name_(nameArg), started_(false), threadNum_(0), next_(0), epollMode_(epollMode)
 {
-    DLOG_INFO << "EventLoopThreadPool 创建 - 名称: " << name_ << ", 基础EventLoop: " << baseLoop_;
+    DLOG_INFO << "EventLoopThreadPool 创建 - 名称: " << name_ << ", 基础EventLoop: " << baseLoop_ << ", epollMode: " << epollMode_;
 }
 
 EventLoopThreadPool::~EventLoopThreadPool()
@@ -71,8 +71,8 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
         snprintf(buf, sizeof buf, "%s%d", name_.c_str(), i);
         DLOG_INFO << "创建线程 " << i << ": " << buf;
 
-        // 2. 创建 EventLoopThread 对象
-        EventLoopThread *t = new EventLoopThread(cb, buf);
+        // 2. 创建 EventLoopThread 对象，传递 epollMode
+        EventLoopThread *t = new EventLoopThread(cb, buf, epollMode_);
         DLOG_INFO << "EventLoopThread 对象创建成功: " << t;
 
         // 3. 将 EventLoopThread 的 unique_ptr 存入 threads_

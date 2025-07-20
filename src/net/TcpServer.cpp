@@ -28,7 +28,8 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
       // 根据 option 决定是否设置 SO_REUSEPORT 选项
       acceptor_(new Acceptor(loop, listenAddr, option == kReusePort)),
       // 此处只创建线程池对象，还未启动任何IO线程(subLoop)
-      threadPool_(new EventLoopThreadPool(loop, name_)),
+      // 读取 epoll_mode 配置并传递给线程池
+      threadPool_(new EventLoopThreadPool(loop, name_, NetworkConfig::getInstance().getEpollMode())),
       connectionCallback_(),
       messageCallback_(),
       nextConnId_(1),
@@ -95,6 +96,8 @@ TcpServer::~TcpServer()
         conn->getLoop()->runInLoop(std::bind(&TcpConnection::connectDestroyed, conn));
     }
 
+    // 新增：服务器关闭日志
+    DLOG_INFO << "[SERVER] 已关闭 - 名称: " << name_ << ", 监听地址: " << ipPort_;
     DLOG_INFO << "TcpServer 析构函数完成 - 名称: " << name_;
 }
 
@@ -121,6 +124,9 @@ void TcpServer::start()
         loop_->runInLoop(std::bind(&Acceptor::listen, acceptor_.get()));
         DLOG_INFO << "监听启动完成";
 
+        // 新增：服务器启动日志
+        DLOG_INFO << "[SERVER] 启动完成 - 名称: " << name_ << ", 监听地址: " << ipPort_
+                  << ", epoll_mode: " << NetworkConfig::getInstance().getEpollMode();
         DLOG_INFO << "TcpServer 启动完成 - 名称: " << name_ << ", 监听地址: " << ipPort_;
     }
     else

@@ -12,16 +12,23 @@ const int kAdded = 1;
 // channel从poller中删除(逻辑删除，epoll可能已移除监听)
 const int kDeleted = 2;
 
-EPollPoller::EPollPoller(EventLoop *loop)
+EPollPoller::EPollPoller(EventLoop *loop, const std::string &epollMode)
     : Poller(loop),
       epollfd_(::epoll_create1(EPOLL_CLOEXEC)),
-      events_(kInitEventListSize)
+      events_(kInitEventListSize),
+      epollMode_(epollMode)
 {
     // 检查 epoll 实例是否创建成功
     if (epollfd_ < 0)
     {
         DLOG_FATAL << "epoll_create1 error:" << errno;
     }
+    if (epollMode_ != "ET" && epollMode_ != "LT")
+    {
+        DLOG_ERROR << "EPollPoller: epollMode 非法，已重置为 LT";
+        epollMode_ = "LT";
+    }
+    DLOG_INFO << "EPollPoller: epollMode=" << epollMode_;
 }
 
 EPollPoller::~EPollPoller()
@@ -151,22 +158,25 @@ void EPollPoller::update(int operation, Channel *channel)
     epoll_event event;
     bzero(&event, sizeof event);
     int fd = channel->fd();
-    // 设置关心的事件掩码
+    // 设置关注的事件掩码
     event.events = channel->events();
+    // ET/LT 模式设置
+    if (epollMode_ == "ET")
+    {
+        event.events |= EPOLLET; // 边缘触发
+    } // LT（水平触发）不加 EPOLLET
     // 设置关联数据为文件描述符
     event.data.fd = fd;
     // 关键: 将 Channel 对象的指针存入 data.ptr，用于 poll 中快速获取
     event.data.ptr = channel;
-
     // 调用 epoll_ctl 系统调用
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0)
     {
-        // 如果操作是删除，记录 Error 日志，通常可以容忍
         if (operation == EPOLL_CTL_DEL)
         {
             DLOG_ERROR << "epoll_ctl del error:" << errno;
         }
-        else // 如果是添加或修改失败，则是严重错误，记录 Fatal 日志并终止
+        else
         {
             DLOG_FATAL << "epoll_ctl add/mod error:" << errno;
         }

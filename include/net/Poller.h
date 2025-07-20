@@ -86,12 +86,13 @@ public:
     /**
      * @brief 创建默认的Poller实现
      * @param loop 所属的EventLoop指针
+     * @param epollMode epoll触发模式（"ET"/"LT"），默认LT
      * @return 返回新创建的Poller指针
      *
      * 工厂方法，根据当前平台选择最合适的IO多路复用实现。
      * 在Linux平台上通常返回EPollPoller。
      */
-    static Poller *newDefaultPoller(EventLoop *loop);
+    static Poller *newDefaultPoller(EventLoop *loop, const std::string &epollMode = "LT");
 
 protected:
     /** @brief Channel映射表类型，key为文件描述符，value为对应的Channel指针 */

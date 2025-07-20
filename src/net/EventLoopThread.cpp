@@ -2,13 +2,14 @@
 
 #include "EventLoop.h"
 
-EventLoopThread::EventLoopThread(const ThreadInitCallback &cb, const std::string &name)
+EventLoopThread::EventLoopThread(const ThreadInitCallback &cb, const std::string &name, const std::string &epollMode)
     : loop_(nullptr),
       exiting_(false),
       thread_(std::bind(&EventLoopThread::threadFunc, this), name),
       mutex_(),
       cond_(),
-      callback_(cb)
+      callback_(cb),
+      epollMode_(epollMode)
 {
 }
 
@@ -46,8 +47,8 @@ EventLoop *EventLoopThread::startLoop()
 // 下面这个方法，实在单独的子线程里面运行的
 void EventLoopThread::threadFunc()
 {
-    // 1. 创建 EventLoop 对象
-    EventLoop loop; // 创建一个独立的eventloop，和上面的线程是一一对应的，one loop per thread
+    // 1. 创建 EventLoop 对象，支持 ET/LT
+    EventLoop loop(epollMode_); // 创建一个独立的eventloop，和上面的线程是一一对应的，one loop per thread
 
     // 2. 如果用户传入了初始化回调函数，则执行它
     if (callback_)

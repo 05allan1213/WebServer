@@ -15,8 +15,9 @@ log:
   console_level: WARN
 
 network:
-  ip: 0.0.0.0
+  ip: 127.0.0.1
   port: 8080
+  epoll_mode: "LT"  # 可选 "ET" 或 "LT"，ET=边缘触发，LT=水平触发，默认LT
   thread_pool:
     thread_num: 3
     queue_size: 1000

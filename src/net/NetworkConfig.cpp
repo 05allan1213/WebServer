@@ -26,6 +26,22 @@ void NetworkConfig::load(const std::string &filename)
     int maxIdleThreads = config["network"]["thread_pool"]["max_idle_threads"].as<int>();
     int minIdleThreads = config["network"]["thread_pool"]["min_idle_threads"].as<int>();
 
+    // 读取epoll模式，默认LT
+    if (config["network"]["epoll_mode"])
+    {
+        epollMode_ = config["network"]["epoll_mode"].as<std::string>();
+        if (epollMode_ != "ET" && epollMode_ != "LT")
+        {
+            DLOG_ERROR << "NetworkConfig: epoll_mode配置非法，必须为ET或LT，当前值: " << epollMode_ << "，已重置为LT";
+            epollMode_ = "LT";
+        }
+    }
+    else
+    {
+        epollMode_ = "LT";
+    }
+    DLOG_INFO << "NetworkConfig: epoll_mode=" << epollMode_;
+
     DLOG_INFO << "NetworkConfig: 读取到配置 - ip=" << ip
               << ", port=" << port
               << ", thread_num=" << threadNum
@@ -164,4 +180,14 @@ int NetworkConfig::getThreadPoolMaxIdleThreads() const
 int NetworkConfig::getThreadPoolMinIdleThreads() const
 {
     return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["min_idle_threads"].as<int>();
+}
+
+std::string NetworkConfig::getEpollMode() const
+{
+    return epollMode_;
+}
+
+bool NetworkConfig::isET() const
+{
+    return epollMode_ == "ET";
 }

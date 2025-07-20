@@ -93,6 +93,7 @@ int main()
     const auto &netConfig = NetworkConfig::getInstance();
     std::cout << "network.ip: " << netConfig.getIp() << std::endl;
     std::cout << "network.port: " << netConfig.getPort() << std::endl;
+    std::cout << "network.epoll_mode: " << netConfig.getEpollMode() << std::endl;
     std::cout << "network.thread_pool.thread_num: " << netConfig.getThreadNum() << std::endl;
     std::cout << "network.thread_pool.queue_size: " << netConfig.getThreadPoolQueueSize() << std::endl;
     std::cout << "network.thread_pool.keep_alive_time: " << netConfig.getThreadPoolKeepAliveTime() << std::endl;

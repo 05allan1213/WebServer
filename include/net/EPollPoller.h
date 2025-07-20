@@ -33,10 +33,11 @@ public:
     /**
      * @brief 构造函数
      * @param loop 所属的EventLoop指针
+     * @param epollMode epoll触发模式（"ET"=边缘触发，"LT"=水平触发）
      *
-     * 创建epoll实例，初始化事件列表
+     * 创建epoll实例，初始化事件列表，支持ET/LT模式
      */
-    EPollPoller(EventLoop *loop);
+    EPollPoller(EventLoop *loop, const std::string &epollMode = "LT");
 
     /**
      * @brief 析构函数
@@ -98,6 +99,7 @@ private:
     /** @brief epoll事件列表类型 */
     using Eventlist = std::vector<epoll_event>;
 
-    int epollfd_;      /**< epoll文件描述符，由epoll_create创建 */
-    Eventlist events_; /**< epoll_wait返回的就绪事件数组 */
+    int epollfd_;           /**< epoll文件描述符，由epoll_create创建 */
+    Eventlist events_;      /**< epoll_wait返回的就绪事件数组 */
+    std::string epollMode_; ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };

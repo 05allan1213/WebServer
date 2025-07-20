@@ -46,10 +46,11 @@ public:
      * @brief 构造函数
      * @param baseLoop 主EventLoop指针，通常由用户创建
      * @param nameArg 线程池名称
+     * @param epollMode epoll触发模式（"ET"/"LT"），默认LT
      *
      * 创建线程池对象，但不立即启动线程
      */
-    EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg);
+    EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg, const std::string &epollMode = "LT");
 
     /**
      * @brief 析构函数
@@ -162,6 +163,7 @@ private:
     int keepAliveTime_ = 60; /**< 线程保活时间（秒），默认为60秒 */
     int maxIdleThreads_ = 5; /**< 最大空闲线程数，默认为5 */
     int minIdleThreads_ = 1; /**< 最小空闲线程数，默认为1 */
+    std::string epollMode_;  ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 
     /** @brief 线程池管理的线程和EventLoop */
     std::vector<std::unique_ptr<EventLoopThread>>

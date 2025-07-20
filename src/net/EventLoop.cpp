@@ -26,14 +26,15 @@ int createEventFd()
     return evtfd;
 }
 
-EventLoop::EventLoop()
+EventLoop::EventLoop(const std::string &epollMode)
     : looping_(false),
       quit_(false),
       callingPendingFunctors_(false),
       threadId_(CurrentThread::tid()),
-      poller_(Poller::newDefaultPoller(this)),
+      poller_(Poller::newDefaultPoller(this, epollMode)),
       wakeupFd_(createEventFd()),
-      wakeupChannel_(new Channel(this, wakeupFd_))
+      wakeupChannel_(new Channel(this, wakeupFd_)),
+      epollMode_(epollMode)
 //   currentActiveChannel_(nullptr)
 {
     DLOG_DEBUG << "EventLoop created " << this << " in thread " << threadId_;

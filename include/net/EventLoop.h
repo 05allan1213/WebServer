@@ -36,10 +36,11 @@ public:
 
     /**
      * @brief 构造函数
+     * @param epollMode epoll触发模式（"ET"/"LT"），默认LT
      *
      * 创建EventLoop实例，初始化poller、wakeupfd等组件，确保线程唯一性
      */
-    EventLoop();
+    EventLoop(const std::string &epollMode = "LT");
 
     /**
      * @brief 析构函数
@@ -153,4 +154,6 @@ private:
     std::atomic_bool callingPendingFunctors_; /**< 标志当前EventLoop是否正在执行回调操作 */
     std::vector<Functor> pendingFunctors_;    /**< 存储EventLoop需要执行的所有回调操作 */
     std::mutex mutex_;                        /**< 互斥锁，保护pendingFunctors_的线程安全操作 */
+
+    std::string epollMode_; ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };

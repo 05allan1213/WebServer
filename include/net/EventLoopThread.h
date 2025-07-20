@@ -42,11 +42,13 @@ public:
      * @brief 构造函数
      * @param cb 线程初始化回调函数，默认为空
      * @param name 线程名称，默认为空字符串
+     * @param epollMode epoll触发模式（"ET"/"LT"），默认LT
      *
      * 创建EventLoopThread对象，但不立即启动线程
      */
     EventLoopThread(const ThreadInitCallback &cb = ThreadInitCallback(),
-                    const std::string &name = std::string());
+                    const std::string &name = std::string(),
+                    const std::string &epollMode = "LT");
 
     /**
      * @brief 析构函数
@@ -78,4 +80,5 @@ private:
     std::mutex mutex_;             /**< 互斥锁，保护loop_的访问，确保线程安全 */
     std::condition_variable cond_; /**< 条件变量，用于startLoop等待loop_初始化完成 */
     ThreadInitCallback callback_;  /**< EventLoop创建后的初始化回调函数 */
+    std::string epollMode_;        ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };
