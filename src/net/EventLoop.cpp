@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
+#include <signal.h>
+#include <atomic>
 
 #include "Channel.h"
 #include "Poller.h"
@@ -25,6 +27,9 @@ int createEventFd()
     }
     return evtfd;
 }
+
+std::atomic<EventLoop *> EventLoop::mainLoop_{nullptr};
+std::atomic_bool EventLoop::signalRegistered_{false};
 
 EventLoop::EventLoop(const std::string &epollMode)
     : looping_(false),
@@ -50,6 +55,8 @@ EventLoop::EventLoop(const std::string &epollMode)
     wakeupChannel_->setReadCallback(std::bind(&EventLoop::handleRead, this));
     // 每个eventlop监听wakeupfd的EPOLLIN事件
     wakeupChannel_->enableReading();
+    // 自动注册信号处理器，实现优雅退出
+    registerSignalHandlerOnce(this);
 }
 
 EventLoop::~EventLoop()
@@ -179,4 +186,24 @@ void EventLoop::doPendingFunctors()
     }
 
     callingPendingFunctors_ = false; // 5. 清除标志位，表示处理完毕
+}
+
+void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
+{
+    if (!signalRegistered_.exchange(true))
+    {
+        mainLoop_ = loop;
+        ::signal(SIGINT, signalHandler);
+        ::signal(SIGTERM, signalHandler);
+        DLOG_INFO << "[EventLoop] 已自动注册SIGINT/SIGTERM信号处理，支持优雅退出";
+    }
+}
+
+void EventLoop::signalHandler(int signo)
+{
+    if (mainLoop_)
+    {
+        DLOG_INFO << "[EventLoop] 收到信号 " << signo << "，即将优雅退出...";
+        mainLoop_.load()->quit();
+    }
 }

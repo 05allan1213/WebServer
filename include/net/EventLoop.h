@@ -133,6 +133,12 @@ private:
      */
     void doPendingFunctors();
 
+    // 自动优雅退出相关
+    static void registerSignalHandlerOnce(EventLoop *loop);
+    static void signalHandler(int signo);
+    static std::atomic<EventLoop *> mainLoop_;
+    static std::atomic_bool signalRegistered_;
+
 private:
     /** @brief 用于存储Poller返回的活跃Channel列表 */
     using ChannelList = std::vector<Channel *>;
