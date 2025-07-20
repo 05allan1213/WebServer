@@ -26,13 +26,13 @@ void NetworkConfig::load(const std::string &filename)
     int maxIdleThreads = config["network"]["thread_pool"]["max_idle_threads"].as<int>();
     int minIdleThreads = config["network"]["thread_pool"]["min_idle_threads"].as<int>();
 
-    // 读取epoll模式，默认LT
+    // 读取epoll模式,默认LT
     if (config["network"]["epoll_mode"])
     {
         epollMode_ = config["network"]["epoll_mode"].as<std::string>();
         if (epollMode_ != "ET" && epollMode_ != "LT")
         {
-            DLOG_ERROR << "NetworkConfig: epoll_mode配置非法，必须为ET或LT，当前值: " << epollMode_ << "，已重置为LT";
+            DLOG_ERROR << "NetworkConfig: epoll_mode配置非法,必须为ET或LT,当前值: " << epollMode_ << ",已重置为LT";
             epollMode_ = "LT";
         }
     }
@@ -41,6 +41,17 @@ void NetworkConfig::load(const std::string &filename)
         epollMode_ = "LT";
     }
     DLOG_INFO << "NetworkConfig: epoll_mode=" << epollMode_;
+
+    // 读取空闲超时时间,默认30秒
+    if (config["network"]["idle_timeout"])
+    {
+        idleTimeout_ = config["network"]["idle_timeout"].as<int>();
+    }
+    else
+    {
+        idleTimeout_ = 30;
+    }
+    DLOG_INFO << "NetworkConfig: idle_timeout=" << idleTimeout_;
 
     DLOG_INFO << "NetworkConfig: 读取到配置 - ip=" << ip
               << ", port=" << port
@@ -52,6 +63,17 @@ void NetworkConfig::load(const std::string &filename)
 
     // 验证配置
     validateConfig(ip, port, threadNum, queueSize, keepAliveTime, maxIdleThreads, minIdleThreads);
+    // 验证 idleTimeout_
+    if (idleTimeout_ <= 0)
+    {
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.idle_timeout 必须大于0,当前值: " << idleTimeout_;
+        throw std::invalid_argument("network.idle_timeout 必须大于0");
+    }
+    if (idleTimeout_ > 3600)
+    {
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.idle_timeout 不能超过3600秒,当前值: " << idleTimeout_;
+        throw std::invalid_argument("network.idle_timeout 不能超过3600秒");
+    }
 }
 
 void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNum, int queueSize,
@@ -69,53 +91,53 @@ void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNu
     // 验证端口号
     if (port < 1024 || port > 65535)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.port必须在1024-65535之间，当前值: " << port;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.port必须在1024-65535之间,当前值: " << port;
         throw std::invalid_argument("network.port必须在1024-65535之间");
     }
 
     // 验证线程数
     if (threadNum <= 0)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.thread_num必须大于0，当前值: " << threadNum;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.thread_num必须大于0,当前值: " << threadNum;
         throw std::invalid_argument("network.thread_pool.thread_num必须大于0");
     }
 
     if (threadNum > 32)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.thread_num不能超过32，当前值: " << threadNum;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.thread_num不能超过32,当前值: " << threadNum;
         throw std::invalid_argument("network.thread_pool.thread_num不能超过32");
     }
 
     // 验证队列大小
     if (queueSize <= 0)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.queue_size必须大于0，当前值: " << queueSize;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.queue_size必须大于0,当前值: " << queueSize;
         throw std::invalid_argument("network.thread_pool.queue_size必须大于0");
     }
 
     if (queueSize > 10000)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.queue_size不能超过10000，当前值: " << queueSize;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.queue_size不能超过10000,当前值: " << queueSize;
         throw std::invalid_argument("network.thread_pool.queue_size不能超过10000");
     }
 
     // 验证保活时间
     if (keepAliveTime <= 0)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.keep_alive_time必须大于0，当前值: " << keepAliveTime;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.keep_alive_time必须大于0,当前值: " << keepAliveTime;
         throw std::invalid_argument("network.thread_pool.keep_alive_time必须大于0");
     }
 
     if (keepAliveTime > 3600)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.keep_alive_time不能超过3600秒，当前值: " << keepAliveTime;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.keep_alive_time不能超过3600秒,当前值: " << keepAliveTime;
         throw std::invalid_argument("network.thread_pool.keep_alive_time不能超过3600秒");
     }
 
     // 验证最大空闲线程数
     if (maxIdleThreads <= 0)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.max_idle_threads必须大于0，当前值: " << maxIdleThreads;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.max_idle_threads必须大于0,当前值: " << maxIdleThreads;
         throw std::invalid_argument("network.thread_pool.max_idle_threads必须大于0");
     }
 
@@ -128,7 +150,7 @@ void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNu
     // 验证最小空闲线程数
     if (minIdleThreads <= 0)
     {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.min_idle_threads必须大于0，当前值: " << minIdleThreads;
+        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.thread_pool.min_idle_threads必须大于0,当前值: " << minIdleThreads;
         throw std::invalid_argument("network.thread_pool.min_idle_threads必须大于0");
     }
 
@@ -190,4 +212,9 @@ std::string NetworkConfig::getEpollMode() const
 bool NetworkConfig::isET() const
 {
     return epollMode_ == "ET";
+}
+
+int NetworkConfig::getIdleTimeout() const
+{
+    return idleTimeout_;
 }

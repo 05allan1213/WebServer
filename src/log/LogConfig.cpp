@@ -18,7 +18,7 @@ LogConfig &LogConfig::getInstance()
  * @brief 加载日志配置文件
  * @param filename 配置文件名
  *
- * 解析YAML配置文件，读取日志相关参数并进行验证
+ * 解析YAML配置文件,读取日志相关参数并进行验证
  */
 void LogConfig::load(const std::string &filename)
 {
@@ -66,7 +66,7 @@ void LogConfig::load(const std::string &filename)
  * @param fileLevel 文件日志级别
  * @param consoleLevel 控制台日志级别
  *
- * 对每个配置参数进行严格验证，确保配置的有效性
+ * 对每个配置参数进行严格验证,确保配置的有效性
  */
 void LogConfig::validateConfig(const std::string &basename, int rollSize, int flushInterval,
                                const std::string &rollMode, const std::string &fileLevel,
@@ -84,21 +84,21 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
     // 验证滚动大小
     if (rollSize <= 0)
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_size必须大于0，当前值: " << rollSize;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_size必须大于0,当前值: " << rollSize;
         throw std::invalid_argument("log.roll_size必须大于0");
     }
 
     // 验证刷新间隔
     if (flushInterval <= 0)
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.flush_interval必须大于0，当前值: " << flushInterval;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.flush_interval必须大于0,当前值: " << flushInterval;
         throw std::invalid_argument("log.flush_interval必须大于0");
     }
 
     // 验证滚动模式
     if (rollMode != "SIZE" && rollMode != "TIME" && rollMode != "SIZE_HOURLY")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一，当前值: " << rollMode;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一,当前值: " << rollMode;
         throw std::invalid_argument("log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一");
     }
 
@@ -106,14 +106,14 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
     if (fileLevel != "DEBUG" && fileLevel != "INFO" && fileLevel != "WARN" &&
         fileLevel != "ERROR" && fileLevel != "FATAL")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.file_level必须是有效的日志级别，当前值: " << fileLevel;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.file_level必须是有效的日志级别,当前值: " << fileLevel;
         throw std::invalid_argument("log.file_level必须是有效的日志级别");
     }
 
     if (consoleLevel != "DEBUG" && consoleLevel != "INFO" && consoleLevel != "WARN" &&
         consoleLevel != "ERROR" && consoleLevel != "FATAL")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.console_level必须是有效的日志级别，当前值: " << consoleLevel;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.console_level必须是有效的日志级别,当前值: " << consoleLevel;
         throw std::invalid_argument("log.console_level必须是有效的日志级别");
     }
 

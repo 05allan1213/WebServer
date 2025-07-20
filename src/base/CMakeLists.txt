@@ -5,6 +5,7 @@ file(GLOB_RECURSE BASE_SRC_FILES "*.cpp")
 add_library(base
     Buffer.cpp
     BaseConfig.cpp
+    Timestamp.cpp
     # 其他base源文件
 )
 

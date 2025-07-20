@@ -7,8 +7,8 @@ InetAddress::InetAddress(uint16_t port, std::string ip)
 {
     bzero(&addr_, sizeof addr_);                   // 清空地址结构
     addr_.sin_family = AF_INET;                    // 设置地址族为IPv4地址族
-    addr_.sin_port = htons(port);                  // 设置端口号，使用网络字节序
-    addr_.sin_addr.s_addr = inet_addr(ip.c_str()); // 设置IP地址，使用网络字节序
+    addr_.sin_port = htons(port);                  // 设置端口号,使用网络字节序
+    addr_.sin_addr.s_addr = inet_addr(ip.c_str()); // 设置IP地址,使用网络字节序
 }
 
 // 获取点分十进制 IP 字符串

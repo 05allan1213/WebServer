@@ -8,23 +8,23 @@
 class EventLoop;
 
 /**
- * @brief Channel类，封装文件描述符和事件处理
+ * @brief Channel类,封装文件描述符和事件处理
  *
- * Channel可以理解为事件通道，封装了socket文件描述符和对应的IO事件（如EPOLLIN、EPOLLOUT等）。
- * 它是EventLoop和Poller之间的桥梁，负责：
+ * Channel可以理解为事件通道,封装了socket文件描述符和对应的IO事件(如EPOLLIN、EPOLLOUT等)。
+ * 它是EventLoop和Poller之间的桥梁,负责：
  * - 管理文件描述符的事件监听状态
  * - 绑定具体事件的处理回调函数
  * - 处理Poller返回的事件并分发到相应的回调函数
  *
- * 每个Channel对象都隶属于一个EventLoop，采用"one loop per thread"的设计模式。
- * Channel的生命周期由上层对象（如TcpConnection）管理，通过tie机制确保安全。
+ * 每个Channel对象都隶属于一个EventLoop,采用"one loop per thread"的设计模式。
+ * Channel的生命周期由上层对象(如TcpConnection)管理,通过tie机制确保安全。
  */
 class Channel : noncopyable
 {
 public:
     /** @brief 读写事件回调函数类型 */
     using EventCallback = std::function<void()>;
-    /** @brief 只读事件回调函数类型，包含接收时间戳 */
+    /** @brief 只读事件回调函数类型,包含接收时间戳 */
     using ReadEventCallback = std::function<void(Timestamp)>;
 
     /**
@@ -37,7 +37,7 @@ public:
     /**
      * @brief 析构函数
      *
-     * 自动从EventLoop中移除Channel，清理相关资源
+     * 自动从EventLoop中移除Channel,清理相关资源
      */
     ~Channel();
 
@@ -45,7 +45,7 @@ public:
      * @brief 事件处理核心函数
      * @param receiveTime 事件发生的时间戳
      *
-     * 根据Poller返回的事件类型调用相应的回调函数。这是Channel的核心方法，
+     * 根据Poller返回的事件类型调用相应的回调函数。这是Channel的核心方法,
      * 由EventLoop在事件循环中调用。
      */
     void handleEvent(Timestamp receiveTime);
@@ -75,10 +75,10 @@ public:
     void setErrorCallback(EventCallback cb) { errorCallback_ = std::move(cb); }
 
     /**
-     * @brief 绑定一个共享指针对象，确保Channel对象在手动移除后不会继续执行回调
+     * @brief 绑定一个共享指针对象,确保Channel对象在手动移除后不会继续执行回调
      * @param obj 要绑定的共享指针对象
      *
-     * 通过weak_ptr机制，当上层对象被销毁时，Channel可以感知到并停止执行回调，
+     * 通过weak_ptr机制,当上层对象被销毁时,Channel可以感知到并停止执行回调,
      * 避免悬空指针导致的未定义行为。
      */
     void tie(const std::shared_ptr<void> &obj);
@@ -104,7 +104,7 @@ public:
     /**
      * @brief 启用读事件监听
      *
-     * 将读事件添加到监听集合中，并通知Poller更新监听状态
+     * 将读事件添加到监听集合中,并通知Poller更新监听状态
      */
     void enableReading()
     {
@@ -115,7 +115,7 @@ public:
     /**
      * @brief 禁用读事件监听
      *
-     * 从监听集合中移除读事件，并通知Poller更新监听状态
+     * 从监听集合中移除读事件,并通知Poller更新监听状态
      */
     void disableReading()
     {
@@ -126,7 +126,7 @@ public:
     /**
      * @brief 启用写事件监听
      *
-     * 将写事件添加到监听集合中，并通知Poller更新监听状态
+     * 将写事件添加到监听集合中,并通知Poller更新监听状态
      */
     void enableWriting()
     {
@@ -137,7 +137,7 @@ public:
     /**
      * @brief 禁用写事件监听
      *
-     * 从监听集合中移除写事件，并通知Poller更新监听状态
+     * 从监听集合中移除写事件,并通知Poller更新监听状态
      */
     void disableWriting()
     {
@@ -148,7 +148,7 @@ public:
     /**
      * @brief 禁用所有事件监听
      *
-     * 清除所有监听事件，并通知Poller更新监听状态
+     * 清除所有监听事件,并通知Poller更新监听状态
      */
     void disableAll()
     {
@@ -158,19 +158,19 @@ public:
 
     /**
      * @brief 检查是否没有监听任何事件
-     * @return 如果没有监听事件返回true，否则返回false
+     * @return 如果没有监听事件返回true,否则返回false
      */
     bool isNoneEvent() const { return events_ == kNoneEvent; }
 
     /**
      * @brief 检查是否正在监听写事件
-     * @return 如果监听写事件返回true，否则返回false
+     * @return 如果监听写事件返回true,否则返回false
      */
     bool isWriting() const { return events_ & kWriteEvent; }
 
     /**
      * @brief 检查是否正在监听读事件
-     * @return 如果监听读事件返回true，否则返回false
+     * @return 如果监听读事件返回true,否则返回false
      */
     bool isReading() const { return events_ & kReadEvent; }
 
@@ -195,7 +195,7 @@ public:
     /**
      * @brief 从EventLoop中移除当前Channel对象
      *
-     * 这会停止对文件描述符的监听，并清理相关资源
+     * 这会停止对文件描述符的监听,并清理相关资源
      */
     void remove();
 
@@ -211,8 +211,8 @@ private:
      * @brief 实际的事件分发逻辑
      * @param receiveTime 事件发生的时间戳
      *
-     * 对每种事件，必须先判断对应的回调函数对象是否有效（非空），然后再调用它。
-     * 这是handleEvent的私有实现，增加了安全检查。
+     * 对每种事件,必须先判断对应的回调函数对象是否有效(非空),然后再调用它。
+     * 这是handleEvent的私有实现,增加了安全检查。
      */
     void handleEventWithGuard(Timestamp receiveTime);
 
@@ -221,14 +221,14 @@ private:
     int fd_;          // Poller监听的文件描述符
     int events_;      // 注册的感兴趣事件类型
     int revents_;     // Poller实际返回的事件类型
-    int index_;       // 供Poller使用，标记Channel在Poller中的状态
+    int index_;       // 供Poller使用,标记Channel在Poller中的状态
 
     /** @brief 表示不同的事件类型 */
     static const int kNoneEvent;  // 无事件
     static const int kReadEvent;  // 读事件
     static const int kWriteEvent; // 写事件
 
-    std::weak_ptr<void> tie_; // 弱指针，用于"绑定"上层对象，防止悬空指针
+    std::weak_ptr<void> tie_; // 弱指针,用于"绑定"上层对象,防止悬空指针
     bool tied_;               // 标记channel是否绑定了上层对象
 
     /** @brief 具体事件的回调操作 */

@@ -4,8 +4,8 @@
  * @file Log.h
  * @brief 日志系统统一入口头文件
  *
- * 这个头文件是日志系统的唯一入口点，包含了使用日志系统所需的所有接口。
- * 用户只需包含这一个头文件，就可以使用日志系统的全部功能。
+ * 这个头文件是日志系统的唯一入口点,包含了使用日志系统所需的所有接口。
+ * 用户只需包含这一个头文件,就可以使用日志系统的全部功能。
  */
 
 // 包含所有必要的头文件
@@ -20,16 +20,16 @@
 
 /**
  * @brief 初始化日志系统
- * 如果日志系统已经初始化，将重新配置它
- * @param asyncLogBasename 异步日志文件基础名，为空则不使用异步日志
- * @param asyncLogRollSize 异步日志单文件最大大小，默认10MB
- * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
- * @param rollMode 日志滚动模式，默认按大小滚动
+ * 如果日志系统已经初始化,将重新配置它
+ * @param asyncLogBasename 异步日志文件基础名,为空则不使用异步日志
+ * @param asyncLogRollSize 异步日志单文件最大大小,默认10MB
+ * @param asyncLogFlushInterval 异步日志刷新间隔(秒),默认1秒
+ * @param rollMode 日志滚动模式,默认按大小滚动
  */
 void initLogSystem(const std::string &asyncLogBasename, size_t asyncLogRollSize, uint32_t asyncLogFlushInterval, LogFile::RollMode rollMode);
 
 /**
- * @brief 初始化日志系统（自动从配置获取参数）
+ * @brief 初始化日志系统(自动从配置获取参数)
  */
 void initLogSystem();
 
@@ -48,7 +48,7 @@ void setRootLoggerLevel(Level level);
 
 /**
  * @brief 快速获取日志器的全局函数
- * @param name 日志器名称，默认为"root"
+ * @param name 日志器名称,默认为"root"
  * @return 日志器智能指针
  */
 Logger::ptr getLogger(const std::string &name = "root");
@@ -59,7 +59,7 @@ Logger::ptr getLogger(const std::string &name = "root");
  */
 void setLogRollMode(LogFile::RollMode mode);
 
-// 重新导出所有日志宏，确保它们可用
+// 重新导出所有日志宏,确保它们可用
 #ifndef LOG_LEVEL
 #define LOG_LEVEL(logger, level)     \
     if (logger->getLevel() <= level) \
@@ -86,7 +86,7 @@ void setLogRollMode(LogFile::RollMode mode);
 #define LOG_FATAL(logger) LOG_LEVEL(logger, Level::FATAL)
 #endif
 
-// 为了方便使用，提供默认日志器的简化宏
+// 为了方便使用,提供默认日志器的简化宏
 #ifndef DLOG_DEBUG
 #define DLOG_DEBUG LOG_DEBUG(getLogger())
 #endif

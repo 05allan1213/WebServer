@@ -3,11 +3,11 @@
 
 /**
  * @brief 初始化日志系统
- * 如果日志系统已经初始化，将重新配置它
- * @param asyncLogBasename 异步日志文件基础名，为空则不使用异步日志
- * @param asyncLogRollSize 异步日志单文件最大大小，默认10MB
- * @param asyncLogFlushInterval 异步日志刷新间隔(秒)，默认1秒
- * @param rollMode 日志滚动模式，默认按大小滚动
+ * 如果日志系统已经初始化,将重新配置它
+ * @param asyncLogBasename 异步日志文件基础名,为空则不使用异步日志
+ * @param asyncLogRollSize 异步日志单文件最大大小,默认10MB
+ * @param asyncLogFlushInterval 异步日志刷新间隔(秒),默认1秒
+ * @param rollMode 日志滚动模式,默认按大小滚动
  */
 void initLogSystem(const std::string &asyncLogBasename,
                    off_t asyncLogRollSize,
@@ -19,7 +19,7 @@ void initLogSystem(const std::string &asyncLogBasename,
 
 /**
  * @brief 初始化日志系统
- * 如果日志系统已经初始化，将重新配置它
+ * 如果日志系统已经初始化,将重新配置它
  * 自动从LogConfig获取参数并调用有参版本
  */
 void initLogSystem()
@@ -29,7 +29,7 @@ void initLogSystem()
     bool enableFile = logConfig.getEnableFile();
     std::string fileLevelStr = logConfig.getFileLevel();
     std::string consoleLevelStr = logConfig.getConsoleLevel();
-    // 解析字符串为Level枚举，并设置到Logger/LogAppender
+    // 解析字符串为Level枚举,并设置到Logger/LogAppender
     std::string rollModeStr = logConfig.getRollMode();
     LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY;
     if (rollModeStr == "SIZE")
@@ -70,7 +70,7 @@ void setRootLoggerLevel(Level level)
 
 /**
  * @brief 快速获取日志器的全局函数
- * @param name 日志器名称，默认为"root"
+ * @param name 日志器名称,默认为"root"
  * @return 日志器智能指针
  */
 Logger::ptr getLogger(const std::string &name)

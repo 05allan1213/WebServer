@@ -5,7 +5,7 @@
 #include <optional>
 
 /**
- * @brief HTTP请求对象，封装请求行、头部、消息体等信息
+ * @brief HTTP请求对象,封装请求行、头部、消息体等信息
  *
  * 用法：
  * 1. 由HttpParser解析生成
@@ -38,7 +38,7 @@ public:
     };
 
     /**
-     * @brief 构造函数，初始化为无效请求
+     * @brief 构造函数,初始化为无效请求
      */
     HttpRequest();
 
@@ -105,7 +105,7 @@ public:
     /**
      * @brief 获取指定头部
      * @param key 头部名
-     * @return 可选值，存在则为头部值
+     * @return 可选值,存在则为头部值
      */
     std::optional<std::string> getHeader(const std::string &key) const;
 

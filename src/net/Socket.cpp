@@ -32,11 +32,11 @@ int Socket::accept(InetAddress *peeraddr)
     sockaddr_in addr;
     socklen_t len = sizeof addr;
     bzero(&addr, sizeof addr);
-    //  接收新的连接请求，同时设置文件描述符为非阻塞和执行时关闭
+    //  接收新的连接请求,同时设置文件描述符为非阻塞和执行时关闭
     int connfd = ::accept4(sockfd_, (sockaddr *)&addr, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (connfd >= 0)
     {
-        // 如果成功接收到新的连接，将对方的地址信息存储到peeraddr中。
+        // 如果成功接收到新的连接,将对方的地址信息存储到peeraddr中。
         peeraddr->setSockAddr(addr);
     }
     return connfd;

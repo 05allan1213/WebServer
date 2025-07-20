@@ -5,7 +5,7 @@
 #include "base/Buffer.h"
 
 /**
- * @brief HTTP响应对象，封装响应状态、头部、消息体等信息
+ * @brief HTTP响应对象,封装响应状态、头部、消息体等信息
  *
  * 用法：
  * 1. 由业务代码生成并填充
@@ -70,7 +70,7 @@ public:
     bool closeConnection() const { return closeConnection_; }
 
     /**
-     * @brief 序列化响应为HTTP报文，写入缓冲区
+     * @brief 序列化响应为HTTP报文,写入缓冲区
      * @param output 输出缓冲区指针
      */
     void appendToBuffer(Buffer *output) const;

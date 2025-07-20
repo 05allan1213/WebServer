@@ -13,7 +13,7 @@
 #include <fstream>
 
 /**
- * @brief 异步输出函数，供FileLogAppender调用
+ * @brief 异步输出函数,供FileLogAppender调用
  * 将日志内容异步写入目标位置
  * @param msg 日志消息
  * @param len 消息长度
@@ -29,7 +29,7 @@ extern void (*g_asyncOutputFunc)(const char *msg, int len);
 /**
  * @brief 日志输出器基类
  *
- * LogAppender负责将日志事件输出到目标位置（如控制台、文件等）。
+ * LogAppender负责将日志事件输出到目标位置(如控制台、文件等)。
  * 每个输出器可以有自己的日志级别、格式器和过滤器。
  */
 class LogAppender : noncopyable
@@ -43,7 +43,7 @@ public:
     virtual ~LogAppender() {}
 
     /**
-     * @brief 输出日志（纯虚函数）
+     * @brief 输出日志(纯虚函数)
      * @param logger 产生日志的日志器
      * @param event 日志事件
      */
@@ -88,7 +88,7 @@ protected:
     /**
      * @brief 检查是否应该过滤本条日志
      * @param event 日志事件
-     * @return true表示应该过滤掉(不输出)，false表示不过滤(正常输出)
+     * @return true表示应该过滤掉(不输出),false表示不过滤(正常输出)
      */
     bool shouldFilter(LogEvent::ptr event) const;
 
@@ -97,7 +97,7 @@ protected:
     Level m_level = Level::DEBUG;
     // 格式器
     LogFormatter::ptr m_formatter;
-    // 互斥锁，保护多线程操作
+    // 互斥锁,保护多线程操作
     std::mutex m_mutex;
     // 过滤器列表
     std::vector<LogFilter::ptr> m_filters;
@@ -105,7 +105,7 @@ protected:
 
 /**
  * @brief 输出到控制台的Appender
- * 将日志输出到标准输出流（终端）
+ * 将日志输出到标准输出流(终端)
  */
 class StdoutLogAppender : public LogAppender
 {
@@ -127,7 +127,7 @@ public:
 
 /**
  * @brief 输出到文件的Appender
- * 将日志输出到指定文件，支持同步和异步两种模式
+ * 将日志输出到指定文件,支持同步和异步两种模式
  */
 class FileLogAppender : public LogAppender
 {
@@ -141,7 +141,7 @@ public:
     FileLogAppender(const std::string &filename);
 
     /**
-     * @brief 析构函数，关闭文件
+     * @brief 析构函数,关闭文件
      */
     ~FileLogAppender();
 

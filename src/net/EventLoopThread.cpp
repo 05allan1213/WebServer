@@ -44,34 +44,34 @@ EventLoop *EventLoopThread::startLoop()
     return loop;
 }
 
-// 下面这个方法，实在单独的子线程里面运行的
+// 下面这个方法,实在单独的子线程里面运行的
 void EventLoopThread::threadFunc()
 {
-    // 1. 创建 EventLoop 对象，支持 ET/LT
-    EventLoop loop(epollMode_); // 创建一个独立的eventloop，和上面的线程是一一对应的，one loop per thread
+    // 1. 创建 EventLoop 对象,支持 ET/LT
+    EventLoop loop(epollMode_); // 创建一个独立的eventloop,和上面的线程是一一对应的,one loop per thread
 
-    // 2. 如果用户传入了初始化回调函数，则执行它
+    // 2. 如果用户传入了初始化回调函数,则执行它
     if (callback_)
     {
         callback_(&loop);
     }
 
     {
-        // 3. 获取互斥锁，准备修改共享变量 loop_ 并通知父线程
+        // 3. 获取互斥锁,准备修改共享变量 loop_ 并通知父线程
         std::unique_lock<std::mutex> lock(mutex_);
         loop_ = &loop;
         cond_.notify_one();
     }
 
     // 4. 开始事件循环
-    // loop.loop() 会阻塞在这里，直到 loop.quit() 被调用
+    // loop.loop() 会阻塞在这里,直到 loop.quit() 被调用
     loop.loop(); // EventLoop loop  => Poller.poll
-    // --- loop.loop() 返回后，表示事件循环结束 ---
+    // --- loop.loop() 返回后,表示事件循环结束 ---
 
     // 5. 清理 loop_ 指针 (在退出前)
     {
         std::unique_lock<std::mutex> lock(mutex_);
         loop_ = nullptr;
     }
-    // 线程函数执行完毕，子线程即将退出
+    // 线程函数执行完毕,子线程即将退出
 }

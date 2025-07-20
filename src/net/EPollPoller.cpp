@@ -9,7 +9,7 @@
 const int kNew = -1; // channel的成员index_ = -1
 // channel已添加到poller中(epoll已监听)
 const int kAdded = 1;
-// channel从poller中删除(逻辑删除，epoll可能已移除监听)
+// channel从poller中删除(逻辑删除,epoll可能已移除监听)
 const int kDeleted = 2;
 
 EPollPoller::EPollPoller(EventLoop *loop, const std::string &epollMode)
@@ -25,7 +25,7 @@ EPollPoller::EPollPoller(EventLoop *loop, const std::string &epollMode)
     }
     if (epollMode_ != "ET" && epollMode_ != "LT")
     {
-        DLOG_ERROR << "EPollPoller: epollMode 非法，已重置为 LT";
+        DLOG_ERROR << "EPollPoller: epollMode 非法,已重置为 LT";
         epollMode_ = "LT";
     }
     DLOG_INFO << "EPollPoller: epollMode=" << epollMode_;
@@ -39,11 +39,11 @@ EPollPoller::~EPollPoller()
 
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
 {
-    // 在高并发场景下，用LOG_DEBUG输出日志更为合理
+    // 在高并发场景下,用LOG_DEBUG输出日志更为合理
     DLOG_DEBUG << "func=" << __FUNCTION__ << " => fd total count:" << channels_.size();
     // 调用 epoll_wait 等待事件发生
     int numEvents = ::epoll_wait(epollfd_, &*events_.begin(), static_cast<int>(events_.size()), timeoutMs);
-    // 立刻保存 errno，防止后续操作（如日志、时间获取）修改它
+    // 立刻保存 errno,防止后续操作(如日志、时间获取)修改它
     int saveErrno = errno;
     // 获取当前时间
     Timestamp now(Timestamp::now());
@@ -51,15 +51,15 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
     if (numEvents > 0) // 有事件发生
     {
         DLOG_INFO << numEvents << " events happened";
-        // 处理就绪事件，填充活跃事件列表
+        // 处理就绪事件,填充活跃事件列表
         fillActiveChannels(numEvents, activeChannels);
-        // 如果活跃事件列表已满，则扩容
+        // 如果活跃事件列表已满,则扩容
         if (numEvents == events_.size())
         {
             events_.resize(events_.size() * 2);
         }
     }
-    else if (numEvents == 0) // 超时，没有事件发生
+    else if (numEvents == 0) // 超时,没有事件发生
     {
         DLOG_DEBUG << __FUNCTION__ << " timeout!";
     }
@@ -68,7 +68,7 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
         // 忽略被信号中断(EINTR)的情况
         if (saveErrno != EINTR)
         {
-            // 恢复 errno，以便日志库能获取正确的错误码
+            // 恢复 errno,以便日志库能获取正确的错误码
             errno = saveErrno;
             DLOG_ERROR << "EPollPoller::poll() error!";
         }
@@ -90,35 +90,35 @@ void EPollPoller::updateChannel(Channel *channel)
         // 这两种情况都需要将 Channel 添加到 epoll 监听中
         if (index == kNew)
         {
-            // 如果是全新的，将其添加到 Poller 内部的 channels_ map 中
+            // 如果是全新的,将其添加到 Poller 内部的 channels_ map 中
             int fd = channel->fd();
             channels_[fd] = channel;
         }
         // 将 Channel 状态标记为已添加
         channel->set_index(kAdded);
-        // 调用内部 update 函数，执行 epoll_ctl(ADD) 操作
+        // 调用内部 update 函数,执行 epoll_ctl(ADD) 操作
         update(EPOLL_CTL_ADD, channel);
     }
     else
     {
-        // 情况2: Channel 已经是 kAdded 状态，表示已在 epoll 中监听
+        // 情况2: Channel 已经是 kAdded 状态,表示已在 epoll 中监听
         int fd = channel->fd();
         if (channel->isNoneEvent()) // 检查 Channel 是否已不再关心任何事件
         {
-            // 如果不关心任何事件，则从 epoll 中移除监听
+            // 如果不关心任何事件,则从 epoll 中移除监听
             update(EPOLL_CTL_DEL, channel);
             // 将 Channel 状态标记为已删除 (逻辑删除)
             channel->set_index(kDeleted);
         }
         else
         {
-            // 如果仍然关心事件 (可能事件类型已改变)，则修改 epoll 中的监听设置
+            // 如果仍然关心事件 (可能事件类型已改变),则修改 epoll 中的监听设置
             update(EPOLL_CTL_MOD, channel);
         }
     }
 }
 
-// 从 epoll 中移除对 Channel 的监听，并从 Poller 管理中删除。
+// 从 epoll 中移除对 Channel 的监听,并从 Poller 管理中删除。
 void EPollPoller::removeChannel(Channel *channel)
 {
     int fd = channel->fd();
@@ -131,14 +131,14 @@ void EPollPoller::removeChannel(Channel *channel)
     int index = channel->index();
     if (index == kAdded)
     {
-        // 如果 Channel 当前仍在 epoll 中监听 (kAdded)，则需要调用 epoll_ctl 将其移除
+        // 如果 Channel 当前仍在 epoll 中监听 (kAdded),则需要调用 epoll_ctl 将其移除
         update(EPOLL_CTL_DEL, channel);
     }
     // 将 Channel 状态设置为 kDeleted (表示已从Poller中删除)
     channel->set_index(kDeleted);
 }
 
-// 遍历 epoll_wait 返回的就绪事件，填充 activeChannels 列表
+// 遍历 epoll_wait 返回的就绪事件,填充 activeChannels 列表
 void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const
 {
     for (int i = 0; i < numEvents; ++i)
@@ -164,10 +164,10 @@ void EPollPoller::update(int operation, Channel *channel)
     if (epollMode_ == "ET")
     {
         event.events |= EPOLLET; // 边缘触发
-    } // LT（水平触发）不加 EPOLLET
+    } // LT(水平触发)不加 EPOLLET
     // 设置关联数据为文件描述符
     event.data.fd = fd;
-    // 关键: 将 Channel 对象的指针存入 data.ptr，用于 poll 中快速获取
+    // 关键: 将 Channel 对象的指针存入 data.ptr,用于 poll 中快速获取
     event.data.ptr = channel;
     // 调用 epoll_ctl 系统调用
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0)

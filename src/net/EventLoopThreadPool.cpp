@@ -71,7 +71,7 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
         snprintf(buf, sizeof buf, "%s%d", name_.c_str(), i);
         DLOG_INFO << "创建线程 " << i << ": " << buf;
 
-        // 2. 创建 EventLoopThread 对象，传递 epollMode
+        // 2. 创建 EventLoopThread 对象,传递 epollMode
         EventLoopThread *t = new EventLoopThread(cb, buf, epollMode_);
         DLOG_INFO << "EventLoopThread 对象创建成功: " << t;
 
@@ -82,12 +82,12 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
         // 4. 启动 EventLoopThread 并获取其内部的 EventLoop 指针
         EventLoop *loop = t->startLoop();
         loops_.push_back(loop);
-        DLOG_INFO << "线程 " << i << " 启动完成，EventLoop: " << loop;
+        DLOG_INFO << "线程 " << i << " 启动完成,EventLoop: " << loop;
     }
 
     if (threadNum_ == 0 && cb)
     {
-        DLOG_INFO << "线程数为0，使用基础EventLoop执行回调";
+        DLOG_INFO << "线程数为0,使用基础EventLoop执行回调";
         cb(baseLoop_);
     }
 
@@ -108,7 +108,7 @@ EventLoop *EventLoopThreadPool::getNextLoop()
 
         // next_ 索引向后移动
         ++next_;
-        // 如果 next_ 超出范围，则回绕到 0
+        // 如果 next_ 超出范围,则回绕到 0
         if (static_cast<size_t>(next_) >= loops_.size())
         {
             next_ = 0;
@@ -117,7 +117,7 @@ EventLoop *EventLoopThreadPool::getNextLoop()
     }
     else
     {
-        DLOG_DEBUG << "线程池为空，返回基础EventLoop: " << baseLoop_;
+        DLOG_DEBUG << "线程池为空,返回基础EventLoop: " << baseLoop_;
     }
 
     // 返回选中的 loop (可能是 baseLoop_ 或池中的某个 loop)
@@ -126,13 +126,13 @@ EventLoop *EventLoopThreadPool::getNextLoop()
 
 std::vector<EventLoop *> EventLoopThreadPool::getAllLoops()
 {
-    // 如果没有工作线程，返回只包含 baseLoop_ 的 vector
+    // 如果没有工作线程,返回只包含 baseLoop_ 的 vector
     if (loops_.empty())
     {
-        DLOG_DEBUG << "获取所有EventLoop: 线程池为空，返回基础EventLoop";
+        DLOG_DEBUG << "获取所有EventLoop: 线程池为空,返回基础EventLoop";
         return std::vector<EventLoop *>(1, baseLoop_);
     }
-    // 否则，返回包含所有工作线程 EventLoop 指针的 vector
+    // 否则,返回包含所有工作线程 EventLoop 指针的 vector
     else
     {
         DLOG_DEBUG << "获取所有EventLoop: 返回 " << loops_.size() << " 个工作线程EventLoop";

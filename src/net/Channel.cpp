@@ -16,7 +16,7 @@ Channel::Channel(EventLoop *loop, int fd)
 
 Channel::~Channel() {}
 
-// 当一个TcpConnection新连接创建时，会调用channel的tie方法
+// 当一个TcpConnection新连接创建时,会调用channel的tie方法
 void Channel::tie(const std::shared_ptr<void> &obj)
 {
     tie_ = obj;
@@ -26,7 +26,7 @@ void Channel::tie(const std::shared_ptr<void> &obj)
 // 更新poller中fd对应的事件epoll_ctl
 void Channel::update()
 {
-    // 通过channel所属的EventLoop，调用poller的相应方法，注册fd的events事件
+    // 通过channel所属的EventLoop,调用poller的相应方法,注册fd的events事件
     loop_->updateChannel(this);
 }
 
@@ -50,7 +50,7 @@ void Channel::handleEvent(Timestamp receiveTime)
     }
 }
 
-// 根据poller通知的channel发生的具体事件， 由channel负责调用具体的回调操作
+// 根据poller通知的channel发生的具体事件, 由channel负责调用具体的回调操作
 void Channel::handleEventWithGuard(Timestamp receiveTime)
 {
     DLOG_INFO << "channel handleEvent revents:" << revents_;

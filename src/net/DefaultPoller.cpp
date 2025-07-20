@@ -10,6 +10,6 @@ Poller *Poller::newDefaultPoller(EventLoop *loop, const std::string &epollMode)
     }
     else
     {
-        return new EPollPoller(loop, epollMode); // 生成epoll实例，支持ET/LT
+        return new EPollPoller(loop, epollMode); // 生成epoll实例,支持ET/LT
     }
 }

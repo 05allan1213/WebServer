@@ -17,7 +17,7 @@ EventLoopThreadPool *g_threadPool = nullptr;
 
 void signalHandler(int sig)
 {
-    std::cout << "\n收到退出信号，正在优雅关闭..." << std::endl;
+    std::cout << "\n收到退出信号,正在优雅关闭..." << std::endl;
     if (g_mainLoop)
     {
         g_mainLoop->quit();
@@ -28,7 +28,7 @@ int main()
 {
     std::cout << "=== 配置读取测试 ===" << std::endl;
 
-    // 先初始化日志系统，这样后续的配置读取日志才能显示
+    // 先初始化日志系统,这样后续的配置读取日志才能显示
     std::cout << "初始化日志系统..." << std::endl;
     initLogSystem();
     std::cout << "日志系统初始化完成" << std::endl;
@@ -112,7 +112,7 @@ int main()
 
     // 2. 测试日志配置应用
     std::cout << "2. 测试日志配置应用..." << std::endl;
-    std::cout << "   日志系统已初始化，使用配置文件参数" << std::endl;
+    std::cout << "   日志系统已初始化,使用配置文件参数" << std::endl;
 
     // 测试日志输出
     DLOG_INFO << "这是一条测试日志信息";
@@ -180,7 +180,7 @@ int main()
     signal(SIGTERM, signalHandler);
 
     std::cout << "\n=== 服务器运行中 ===" << std::endl;
-    std::cout << "线程池已启动，服务器正在运行..." << std::endl;
+    std::cout << "线程池已启动,服务器正在运行..." << std::endl;
     std::cout << "按 Ctrl+C 退出程序" << std::endl;
 
     // 启动主事件循环
@@ -188,7 +188,7 @@ int main()
     loop.loop();
 
     std::cout << "\n=== 服务器关闭 ===" << std::endl;
-    std::cout << "主事件循环已退出，程序结束" << std::endl;
+    std::cout << "主事件循环已退出,程序结束" << std::endl;
 
     return 0;
 }

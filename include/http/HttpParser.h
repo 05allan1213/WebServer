@@ -5,11 +5,11 @@
 class Buffer; // 前向声明
 
 /**
- * @brief HTTP请求解析器，负责将原始数据流解析为HttpRequest对象
+ * @brief HTTP请求解析器,负责将原始数据流解析为HttpRequest对象
  *
  * 用法：
- * 1. 每个连接分配一个HttpParser实例，持续复用
- * 2. 调用parseRequest驱动解析，支持分段数据
+ * 1. 每个连接分配一个HttpParser实例,持续复用
+ * 2. 调用parseRequest驱动解析,支持分段数据
  * 3. 解析完成后可通过request()获取请求对象
  */
 class HttpParser
@@ -27,12 +27,12 @@ public:
     };
 
     /**
-     * @brief 构造函数，初始化解析状态
+     * @brief 构造函数,初始化解析状态
      */
     HttpParser();
 
     /**
-     * @brief 重置解析器状态，准备解析下一个请求
+     * @brief 重置解析器状态,准备解析下一个请求
      */
     void reset();
 
@@ -41,7 +41,7 @@ public:
      * @param buf 输入缓冲区
      * @return 解析是否成功
      *
-     * 支持分段数据，自动维护状态机。
+     * 支持分段数据,自动维护状态机。
      */
     bool parseRequest(Buffer *buf);
 
@@ -53,7 +53,7 @@ public:
 
     /**
      * @brief 获取解析得到的HttpRequest对象
-     * @return const引用，包含请求所有信息
+     * @return const引用,包含请求所有信息
      */
     const HttpRequest &request() const { return request_; }
 

@@ -11,7 +11,7 @@
 
 // 前向声明
 class LogAppender;
-// 为了能在 Logger 中使用 LogAppender::ptr，我们需要前向声明 LogAppender 的 ptr 类型
+// 为了能在 Logger 中使用 LogAppender::ptr,我们需要前向声明 LogAppender 的 ptr 类型
 namespace std
 {
     template <typename T>
@@ -20,14 +20,14 @@ namespace std
 typedef std::shared_ptr<LogAppender> LogAppenderPtr;
 
 /**
- * @brief 日志器类，作为日志系统的核心入口
+ * @brief 日志器类,作为日志系统的核心入口
  *
- * Logger是整个日志系统的核心协调者，它负责：
+ * Logger是整个日志系统的核心协调者,它负责：
  * 1. 接收来自用户的日志请求
  * 2. 根据日志级别判断是否需要记录
  * 3. 将日志事件分发给各个Appender进行输出
  *
- * 每个Logger持有多个LogAppender，可以同时将日志输出到不同目标(如控制台、文件等)
+ * 每个Logger持有多个LogAppender,可以同时将日志输出到不同目标(如控制台、文件等)
  */
 class Logger : public std::enable_shared_from_this<Logger>, private noncopyable
 {
@@ -38,7 +38,7 @@ public:
 public:
     /**
      * @brief 构造函数
-     * @param name 日志器名称，默认为"root"
+     * @param name 日志器名称,默认为"root"
      */
     Logger(const std::string &name = "root");
 
@@ -163,13 +163,13 @@ public:
 
     /**
      * @brief 设置是否继承Appender
-     * @param enable true表示继承，false表示不继承
+     * @param enable true表示继承,false表示不继承
      */
     void setEnableInherit(bool enable) { m_enableInherit = enable; }
 
     /**
      * @brief 获取是否继承Appender
-     * @return true表示继承，false表示不继承
+     * @return true表示继承,false表示不继承
      */
     bool getEnableInherit() const { return m_enableInherit; }
 
@@ -180,15 +180,15 @@ private:
     std::vector<LogAppenderPtr> m_appenders; // 日志输出器集合
     std::vector<LogFilter::ptr> m_filters;   // 日志过滤器集合
     Logger::ptr m_parent;                    // 父日志器
-    bool m_enableInherit = true;             // 是否向上级传递日志事件，默认为true
+    bool m_enableInherit = true;             // 是否向上级传递日志事件,默认为true
 };
 
 /**
- * @brief 基础日志宏，根据级别判断是否创建LogEvent并记录日志
+ * @brief 基础日志宏,根据级别判断是否创建LogEvent并记录日志
  *
  * 宏的工作流程:
  * 1. 判断logger的级别是否允许输出指定级别的日志
- * 2. 如果允许，创建一个临时的LogEventWrap对象
+ * 2. 如果允许,创建一个临时的LogEventWrap对象
  * 3. 该对象在生命周期结束时(语句末尾)的析构函数会自动提交日志
  * 4. 允许使用流式语法(<<)向日志添加内容
  */

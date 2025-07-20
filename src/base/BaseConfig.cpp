@@ -34,21 +34,21 @@ private:
         // 验证初始大小
         if (initialSize <= 0)
         {
-            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.initial_size必须大于0，当前值: " << initialSize;
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.initial_size必须大于0,当前值: " << initialSize;
             throw std::invalid_argument("buffer.initial_size必须大于0");
         }
 
         // 验证最大大小
         if (maxSize <= 0)
         {
-            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.max_size必须大于0，当前值: " << maxSize;
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.max_size必须大于0,当前值: " << maxSize;
             throw std::invalid_argument("buffer.max_size必须大于0");
         }
 
         // 验证增长因子
         if (growthFactor <= 1)
         {
-            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.growth_factor必须大于1，当前值: " << growthFactor;
+            DLOG_ERROR << "BaseConfig: 配置验证失败 - buffer.growth_factor必须大于1,当前值: " << growthFactor;
             throw std::invalid_argument("buffer.growth_factor必须大于1");
         }
 

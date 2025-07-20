@@ -10,6 +10,9 @@
 #include "Channel.h"
 #include "Poller.h"
 #include "log/Log.h"
+#include "net/TimerQueue.h"
+#include "base/Timestamp.h"
+#include "net/TimerId.h"
 
 // 保证一个线程内最多只能创建一个 EventLoop 对象
 __thread EventLoop *t_loopInThisThread = nullptr;
@@ -17,7 +20,7 @@ __thread EventLoop *t_loopInThisThread = nullptr;
 // 定义默认的IO复用调用的超时时间
 const int kPollTimeMs = 10000; // 默认10s
 
-// 创建wakeupfd，用来notify唤醒subReactor处理新来的channel
+// 创建wakeupfd,用来notify唤醒subReactor处理新来的channel
 int createEventFd()
 {
     int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -37,6 +40,7 @@ EventLoop::EventLoop(const std::string &epollMode)
       callingPendingFunctors_(false),
       threadId_(CurrentThread::tid()),
       poller_(Poller::newDefaultPoller(this, epollMode)),
+      timerQueue_(new TimerQueue(this)),
       wakeupFd_(createEventFd()),
       wakeupChannel_(new Channel(this, wakeupFd_)),
       epollMode_(epollMode)
@@ -55,7 +59,7 @@ EventLoop::EventLoop(const std::string &epollMode)
     wakeupChannel_->setReadCallback(std::bind(&EventLoop::handleRead, this));
     // 每个eventlop监听wakeupfd的EPOLLIN事件
     wakeupChannel_->enableReading();
-    // 自动注册信号处理器，实现优雅退出
+    // 自动注册信号处理器,实现优雅退出
     registerSignalHandlerOnce(this);
 }
 
@@ -78,7 +82,7 @@ void EventLoop::loop()
     while (!quit_)
     {
         activeChannels_.clear();
-        // 监听两类fd   一种是client的fd，一种wakeupfd
+        // 监听两类fd   一种是client的fd,一种wakeupfd
         pollReturnTime_ = poller_->poll(kPollTimeMs, &activeChannels_);
         for (Channel *channel : activeChannels_) // 遍历 Poller 返回的所有发生了事件的 Channel
         {
@@ -93,16 +97,16 @@ void EventLoop::loop()
     looping_ = false;
 }
 
-// 退出事件循环   1.loop在自己的线程中调用quit  2.在非loop的线程中，调用loop的quit
+// 退出事件循环   1.loop在自己的线程中调用quit  2.在非loop的线程中,调用loop的quit
 void EventLoop::quit()
 {
     quit_ = true;
     if (!isInLoopThread())
     {
         // 在其他loop线程调用 quit
-        wakeup(); // 唤醒阻塞在poll()上的目标loop，以退出循环
+        wakeup(); // 唤醒阻塞在poll()上的目标loop,以退出循环
     }
-    // 在loop自身线程调用quit,说明此时线程正在处理事件，处理完直接退出循环
+    // 在loop自身线程调用quit,说明此时线程正在处理事件,处理完直接退出循环
 }
 
 // 在当前loop中执行cb
@@ -118,7 +122,7 @@ void EventLoop::runInLoop(Functor cb)
     }
 }
 
-// 把cb放入队列，唤醒loop所在的线程，执行cb
+// 把cb放入队列,唤醒loop所在的线程,执行cb
 void EventLoop::queueInLoop(Functor cb)
 {
     {
@@ -128,8 +132,8 @@ void EventLoop::queueInLoop(Functor cb)
 
     // 唤醒逻辑:
     // 1. 如果调用 queueInLoop 的线程不是loop自己的线程 (通常情况)
-    // 2. 如果是loop自己的线程在调用 queueInLoop，但它当前正在处理 pendingFunctors 队列
-    //(意味着本次添加的 cb 不会在当前这轮 doPendingFunctors 中被执行，需要唤醒 loop让下一轮执行)
+    // 2. 如果是loop自己的线程在调用 queueInLoop,但它当前正在处理 pendingFunctors 队列
+    //(意味着本次添加的 cb 不会在当前这轮 doPendingFunctors 中被执行,需要唤醒 loop让下一轮执行)
     // 则需要唤醒 EventLoop 线程
     if (!isInLoopThread() || callingPendingFunctors_)
     {
@@ -151,7 +155,7 @@ void EventLoop::handleRead()
 void EventLoop::wakeup()
 {
     uint64_t one = 1;
-    // 利用 eventfd 的特性，写操作会使其变为可读，从而被 Poller 检测到
+    // 利用 eventfd 的特性,写操作会使其变为可读,从而被 Poller 检测到
     ssize_t n = ::write(wakeupFd_, &one, sizeof one);
     if (n != sizeof one)
     {
@@ -170,7 +174,7 @@ bool EventLoop::hasChannel(Channel *channel) { return poller_->hasChannel(channe
 void EventLoop::doPendingFunctors()
 {
     std::vector<Functor> functors;  // 1. 创建一个局部的临时 vector
-    callingPendingFunctors_ = true; // 2. 设置标志位，表示正在处理回调
+    callingPendingFunctors_ = true; // 2. 设置标志位,表示正在处理回调
 
     {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -185,7 +189,7 @@ void EventLoop::doPendingFunctors()
         functor(); // 执行回调
     }
 
-    callingPendingFunctors_ = false; // 5. 清除标志位，表示处理完毕
+    callingPendingFunctors_ = false; // 5. 清除标志位,表示处理完毕
 }
 
 void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
@@ -195,7 +199,7 @@ void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
         mainLoop_ = loop;
         ::signal(SIGINT, signalHandler);
         ::signal(SIGTERM, signalHandler);
-        DLOG_INFO << "[EventLoop] 已自动注册SIGINT/SIGTERM信号处理，支持优雅退出";
+        DLOG_INFO << "[EventLoop] 已自动注册SIGINT/SIGTERM信号处理,支持优雅退出";
     }
 }
 
@@ -203,7 +207,38 @@ void EventLoop::signalHandler(int signo)
 {
     if (mainLoop_)
     {
-        DLOG_INFO << "[EventLoop] 收到信号 " << signo << "，即将优雅退出...";
+        DLOG_INFO << "[EventLoop] 收到信号 " << signo << ",即将优雅退出...";
         mainLoop_.load()->quit();
+    }
+}
+
+// 定时器相关接口实现
+TimerId EventLoop::runAt(Timestamp time, std::function<void()> cb)
+{
+    return timerQueue_->addTimer(std::move(cb), time, 0.0);
+}
+
+TimerId EventLoop::runAfter(double delay, std::function<void()> cb)
+{
+    Timestamp time(addTime(Timestamp::now(), delay));
+    return runAt(time, std::move(cb));
+}
+
+TimerId EventLoop::runEvery(double interval, std::function<void()> cb)
+{
+    Timestamp time(addTime(Timestamp::now(), interval));
+    return timerQueue_->addTimer(std::move(cb), time, interval);
+}
+
+void EventLoop::cancel(TimerId timerId)
+{
+    return timerQueue_->cancel(timerId);
+}
+
+void EventLoop::assertInLoopThread()
+{
+    if (!isInLoopThread())
+    {
+        abort();
     }
 }

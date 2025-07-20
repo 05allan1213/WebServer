@@ -12,6 +12,8 @@
 #include "EventLoop.h"
 #include "log/Log.h"
 #include "Socket.h"
+#include "net/TimerId.h"
+#include "net/NetworkConfig.h"
 
 // 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
@@ -71,7 +73,7 @@ void TcpConnection::send(const std::string &buf)
 void TcpConnection::sendInLoop(const void *data, size_t len)
 {
     ssize_t nwrote = 0;      // 记录本次发送的字节数
-    size_t remaining = len;  // 记录剩余未发送的字节数，初始为总长度
+    size_t remaining = len;  // 记录剩余未发送的字节数,初始为总长度
     bool faultError = false; // 记录是否发生错误
 
     if (state_ == kDisconnected)
@@ -79,7 +81,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         DLOG_ERROR << "disconnected, give up writing";
         return;
     }
-    // 当前Channel关注写事件，且发送缓冲区为空，则尝试将数据写入Socket
+    // 当前Channel关注写事件,且发送缓冲区为空,则尝试将数据写入Socket
     if (!channel_->isWriting() && outputBuffer_.readableBytes() == 0)
     {
         nwrote = ::write(channel_->fd(), data, len);
@@ -87,7 +89,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         {
             // 更新剩余字节数
             remaining = len - nwrote;
-            // 如果全部发送完，就调用写回调
+            // 如果全部发送完,就调用写回调
             if (remaining == 0 && writeCompleteCallback_)
             {
                 loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
@@ -95,9 +97,9 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         }
         else // 写入出错
         {
-            // 因为出错，所以并没有写入任何字节
+            // 因为出错,所以并没有写入任何字节
             nwrote = 0;
-            // 检查errno，判断错误类型
+            // 检查errno,判断错误类型
             if (errno != EWOULDBLOCK || errno != EAGAIN)
             {
                 DLOG_ERROR << "TcpConnection::sendInLoop";
@@ -108,7 +110,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
             }
         }
     }
-    // 连接未发生错误，但要么未尝试发送，要么只发送了部分数据
+    // 连接未发生错误,但要么未尝试发送,要么只发送了部分数据
     if (!faultError && remaining > 0)
     {
         // 获取当前缓冲区已有数据量
@@ -157,6 +159,20 @@ void TcpConnection::connectEstablished()
     channel_->enableReading();
 
     connectionCallback_(shared_from_this());
+    // 设置30秒空闲超时定时器
+    auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
+    int idleTimeout = NetworkConfig::getInstance().getIdleTimeout();
+    DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 设置空闲超时定时器: " << idleTimeout << " 秒";
+    idleTimerId_ = loop_->runAfter(static_cast<double>(idleTimeout), [weakThis]
+                                   {
+        auto strongThis = weakThis.lock();
+        if (strongThis) {
+            DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 发送提示并关闭连接";
+            strongThis->send("Timeout, closing connection!\n");
+            DLOG_INFO << "Connection timeout, shutting down.";
+            strongThis->shutdown();
+        } });
+    DLOG_INFO << "当前idleTimeout=" << idleTimeout;
 }
 // 连接断开
 void TcpConnection::connectDestroyed()
@@ -167,17 +183,34 @@ void TcpConnection::connectDestroyed()
         channel_->disableAll();
         connectionCallback_(shared_from_this());
     }
+    DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 销毁, 取消空闲定时器";
+    loop_->cancel(idleTimerId_);
     channel_->remove();
 }
 
 void TcpConnection::handleRead(Timestamp receiveTime)
-// 当 Poller 检测到 connfd 变为可读时，Channel会调用此方法
+// 当 Poller 检测到 connfd 变为可读时,Channel会调用此方法
 {
     int saveErrno = 0;
-    // 从 connfd 读取数据，并将数据存入 inputBuffer_。
+    // 从 connfd 读取数据,并将数据存入 inputBuffer_。
     ssize_t n = inputBuffer_.readFd(channel_->fd(), &saveErrno);
     if (n > 0) // 成功读取数据
     {
+        // 收到消息,重置空闲定时器
+        loop_->cancel(idleTimerId_);
+        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 收到消息, 取消并重置空闲定时器";
+        auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
+        int idleTimeout = NetworkConfig::getInstance().getIdleTimeout();
+        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 重置空闲超时定时器: " << idleTimeout << " 秒";
+        idleTimerId_ = loop_->runAfter(static_cast<double>(idleTimeout), [weakThis]
+                                       {
+            auto strongThis = weakThis.lock();
+            if (strongThis) {
+                DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 发送提示并关闭连接";
+                strongThis->send("Timeout, closing connection!\n");
+                DLOG_INFO << "Connection timeout, shutting down.";
+                strongThis->shutdown();
+            } });
         // 这是网络库使用者最关心的回调之一(通常对应 onMessage)。
         messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
     }
@@ -214,22 +247,22 @@ void TcpConnection::handleWrite()
                 channel_->disableWriting();
                 if (writeCompleteCallback_)
                 {
-                    // 防御性编程，确保在下轮事件循环执行回调
+                    // 防御性编程,确保在下轮事件循环执行回调
                     loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
                 }
-                if (state_ == kDisconnecting) // 如果正在断开连接，则关闭连接
+                if (state_ == kDisconnecting) // 如果正在断开连接,则关闭连接
                 {
                     shutdownInLoop();
                 }
             }
-            // 数据未发送完毕，此时channel_会继续关注写事件，再次调用handleWrite
+            // 数据未发送完毕,此时channel_会继续关注写事件,再次调用handleWrite
         }
         else // 写入失败
         {
             DLOG_ERROR << "TcpConnection::handleWrite";
         }
     }
-    else // Channel不在写状态，却调用了handleWrite，异常
+    else // Channel不在写状态,却调用了handleWrite,异常
     {
         DLOG_ERROR << "TcpConnection fd=" << channel_->fd() << " is down, no more writing";
     }

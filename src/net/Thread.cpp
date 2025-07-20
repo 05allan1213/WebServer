@@ -15,8 +15,8 @@ Thread::Thread(ThreadFunc func, const std::string &name)
 
 Thread::~Thread()
 {
-    // 如果线程已启动但没有被 join，则将其设置为 detach 状态
-    // 这样主线程退出时，该子线程资源会被系统自动回收，避免资源泄漏
+    // 如果线程已启动但没有被 join,则将其设置为 detach 状态
+    // 这样主线程退出时,该子线程资源会被系统自动回收,避免资源泄漏
     // detach 和 join 是互斥的
     if (started_ && !joined_)
     {
@@ -41,7 +41,7 @@ void Thread::start()
             {
                 DLOG_FATAL << "sem_post error";
             }
-            func_(); // 开启一个新线程，专门执行一个线程函数
+            func_(); // 开启一个新线程,专门执行一个线程函数
         }));
     // 这里必须等待获取上面新创建的线程的tid
     if (sem_wait(&sem)) // P操作

@@ -65,7 +65,7 @@ void Acceptor::handleRead()
         }
         else // 回调无效
         {
-            // 理论上不应发生，表示 TcpServer 未正确设置回调
+            // 理论上不应发生,表示 TcpServer 未正确设置回调
             ::close(connfd);
         }
     }

@@ -1,26 +1,27 @@
 base:
   buffer:
-    initial_size: 1024
-    max_size: 65536
-    growth_factor: 2
+    initial_size: 1024      # 缓冲区初始大小,单位字节
+    max_size: 65536         # 缓冲区最大大小,单位字节
+    growth_factor: 2        # 缓冲区扩展倍数
 
 log:
-  basename: logs/server
-  roll_size: 1048576
-  flush_interval: 1
-  roll_mode: SIZE_HOURLY
-  enable_file: true
-  enable_async: true   # false=同步，true=异步
-  file_level: DEBUG
-  console_level: WARN
+  basename: logs/server     # 日志文件基础名
+  roll_size: 1048576        # 日志滚动大小,单位字节
+  flush_interval: 1         # 日志刷新间隔,单位秒
+  roll_mode: SIZE_HOURLY    # 日志滚动模式(SIZE_HOURLY/其他)
+  enable_file: true         # 是否启用文件日志
+  enable_async: true        # 是否启用异步日志,false=同步,true=异步
+  file_level: DEBUG         # 文件日志级别
+  console_level: WARN       # 控制台日志级别
 
 network:
-  ip: 127.0.0.1
-  port: 8080
-  epoll_mode: "LT"  # 可选 "ET" 或 "LT"，ET=边缘触发，LT=水平触发，默认LT
+  ip: 127.0.0.1             # 服务器监听IP地址
+  port: 8080                # 服务器监听端口
+  epoll_mode: "LT"          # epoll触发模式,可选 "ET" 或 "LT"
+  idle_timeout: 30          # 空闲连接超时时间,单位秒
   thread_pool:
-    thread_num: 3
-    queue_size: 1000
-    keep_alive_time: 60
-    max_idle_threads: 5
-    min_idle_threads: 1
+    thread_num: 3           # 线程池线程数量
+    queue_size: 1000        # 线程池任务队列大小
+    keep_alive_time: 60     # 线程池线程保活时间,单位秒
+    max_idle_threads: 5     # 线程池最大空闲线程数
+    min_idle_threads: 1     # 线程池最小空闲线程数

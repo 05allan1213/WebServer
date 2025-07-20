@@ -9,12 +9,12 @@ project(webserver LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 # 强制要求支持 C++17 标准
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# 关闭编译器特定的扩展，以提高可移植性
+# 关闭编译器特定的扩展,以提高可移植性
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # --- 输出目录设置 ---
-# 设置库文件（.a, .lib, .so, .dll）和可执行文件的输出路径
-# 将它们放在目录下的 lib 和 bin 子目录中，便于管理
+# 设置库文件(.a, .lib, .so, .dll)和可执行文件的输出路径
+# 将它们放在目录下的 lib 和 bin 子目录中,便于管理
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib) # 静态库 (.a, .lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib) # 共享库 (.so, .dll)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin) # 可执行文件 (.exe, 无后缀)

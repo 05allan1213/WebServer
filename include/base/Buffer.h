@@ -16,7 +16,7 @@
  * |                   |                  |                  |
  * 0      <=      readerIndex   <=   writerIndex    <=     size
  *
- * 高效的内存缓冲区实现，借鉴muduo库设计，专为网络I/O和日志系统优化
+ * 高效的内存缓冲区实现,借鉴muduo库设计,专为网络I/O和日志系统优化
  */
 class Buffer
 {
@@ -25,8 +25,8 @@ public:
     static const size_t kInitialSize = 1024; // 缓冲区(readable + writable)的初始大小,大小1024字节
 
     /**
-     * @brief 构造函数，创建指定初始大小的缓冲区
-     * @param initialSize 缓冲区初始大小，默认从配置文件读取
+     * @brief 构造函数,创建指定初始大小的缓冲区
+     * @param initialSize 缓冲区初始大小,默认从配置文件读取
      */
     explicit Buffer(size_t initialSize = 0)
     {
@@ -147,7 +147,7 @@ public:
      * @brief 从文件描述符读取数据到缓冲区
      * @param fd 文件描述符
      * @param saveErrno 用于保存errno的指针
-     * @return 读取的字节数，-1表示出错
+     * @return 读取的字节数,-1表示出错
      */
     ssize_t readFd(int fd, int *saveErrno);
 
@@ -155,7 +155,7 @@ public:
      * @brief 向文件描述符写入缓冲区数据
      * @param fd 文件描述符
      * @param saveErrno 用于保存errno的指针
-     * @return 写入的字节数，-1表示出错
+     * @return 写入的字节数,-1表示出错
      */
     ssize_t writeFd(int fd, int *saveErrno);
 
@@ -168,12 +168,12 @@ private:
     const char *begin() const { return &*buffer_.begin(); }
 
     /**
-     * @brief 扩容逻辑，确保有足够的可写空间
+     * @brief 扩容逻辑,确保有足够的可写空间
      * @param len 需要的最小可写空间字节数
      *
      * 两种策略:
-     * 1. 空间复用: 将已有数据向前移动，回收前置空间
-     * 2. 内存重分配: 当空间复用也不够时，直接扩大底层vector
+     * 1. 空间复用: 将已有数据向前移动,回收前置空间
+     * 2. 内存重分配: 当空间复用也不够时,直接扩大底层vector
      */
     void makeSpace(size_t len)
     {
@@ -195,6 +195,6 @@ private:
     }
 
     std::vector<char> buffer_; // 缓冲区
-    size_t readerIndex_;       // 读索引，应用程序从这里开始读取数据
-    size_t writerIndex_;       // 写索引，新数据从这里开始写入
+    size_t readerIndex_;       // 读索引,应用程序从这里开始读取数据
+    size_t writerIndex_;       // 写索引,新数据从这里开始写入
 };

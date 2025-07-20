@@ -23,11 +23,11 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
     : loop_(CheckLoopNotNull(loop)),
       ipPort_(listenAddr.toIpPort()),
       name_(nameArg),
-      // 将loop(baseLoop)传递给Acceptor，明确Acceptor在baseLoop中执行
-      // 将监听地址(listenAddr)传递给 Acceptor，用于后续的 socket, bind, listen 操作
+      // 将loop(baseLoop)传递给Acceptor,明确Acceptor在baseLoop中执行
+      // 将监听地址(listenAddr)传递给 Acceptor,用于后续的 socket, bind, listen 操作
       // 根据 option 决定是否设置 SO_REUSEPORT 选项
       acceptor_(new Acceptor(loop, listenAddr, option == kReusePort)),
-      // 此处只创建线程池对象，还未启动任何IO线程(subLoop)
+      // 此处只创建线程池对象,还未启动任何IO线程(subLoop)
       // 读取 epoll_mode 配置并传递给线程池
       threadPool_(new EventLoopThreadPool(loop, name_, NetworkConfig::getInstance().getEpollMode())),
       connectionCallback_(),
@@ -37,7 +37,7 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
 {
     DLOG_INFO << "TcpServer 构造函数开始 - 名称: " << name_ << ", 监听地址: " << ipPort_;
 
-    // 自动加载配置文件（只加载一次）
+    // 自动加载配置文件(只加载一次)
     DLOG_INFO << "加载网络配置文件: configs/config.yml";
     NetworkConfig::getInstance().load("configs/config.yml");
 
@@ -49,7 +49,7 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
     DLOG_INFO << "等待异步日志系统启动...";
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // 初始化日志系统（使用无参版本，自动从配置读取参数）
+    // 初始化日志系统(使用无参版本,自动从配置读取参数)
     DLOG_INFO << "初始化日志系统...";
     initLogSystem();
     DLOG_INFO << "日志系统初始化完成";
@@ -87,12 +87,12 @@ TcpServer::~TcpServer()
     DLOG_INFO << "TcpServer 析构函数开始 - 名称: " << name_;
 
     // 遍历并关闭所有连接
-    DLOG_INFO << "关闭所有连接，连接数: " << connections_.size();
+    DLOG_INFO << "关闭所有连接,连接数: " << connections_.size();
     for (auto &item : connections_)
     {
         TcpConnectionPtr conn(item.second); // 获取连接的shared_ptr
         DLOG_INFO << "关闭连接: " << conn->name();
-        item.second.reset(); // 置空shared_ptr，断开TcpServer对TcpConnection对象的强引用
+        item.second.reset(); // 置空shared_ptr,断开TcpServer对TcpConnection对象的强引用
         conn->getLoop()->runInLoop(std::bind(&TcpConnection::connectDestroyed, conn));
     }
 
@@ -114,7 +114,7 @@ void TcpServer::start()
     // 防止重复启动
     if (started_++ == 0)
     {
-        DLOG_INFO << "首次启动，开始初始化...";
+        DLOG_INFO << "首次启动,开始初始化...";
 
         DLOG_INFO << "启动线程池...";
         threadPool_->start(threadInitCallback_);
@@ -131,7 +131,7 @@ void TcpServer::start()
     }
     else
     {
-        DLOG_WARN << "TcpServer 已经启动，忽略重复启动请求";
+        DLOG_WARN << "TcpServer 已经启动,忽略重复启动请求";
     }
 }
 
@@ -139,7 +139,7 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
 {
     DLOG_INFO << "收到新连接请求 - sockfd: " << sockfd << ", 客户端地址: " << peerAddr.toIpPort();
 
-    // 轮询获取一个subLoop，以管理channel
+    // 轮询获取一个subLoop,以管理channel
     EventLoop *ioLoop = threadPool_->getNextLoop();
     DLOG_INFO << "为新连接分配EventLoop: " << ioLoop;
 
@@ -170,7 +170,7 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
 
     // 存储新连接
     connections_[connName] = conn;
-    DLOG_INFO << "连接已添加到连接池，当前连接数: " << connections_.size();
+    DLOG_INFO << "连接已添加到连接池,当前连接数: " << connections_.size();
 
     // 设置TcpConnection回调
     DLOG_INFO << "设置TcpConnection回调函数...";
@@ -199,7 +199,7 @@ void TcpServer::removeConnectionInLoop(const TcpConnectionPtr &conn)
     DLOG_INFO << "TcpServer::removeConnectionInLoop [" << name_ << "] - connection " << conn->name();
     // 从map中删除
     connections_.erase(conn->name());
-    DLOG_INFO << "连接已从连接池移除，当前连接数: " << connections_.size();
+    DLOG_INFO << "连接已从连接池移除,当前连接数: " << connections_.size();
 
     // 获取连接所属的subLoop
     EventLoop *ioLoop = conn->getLoop();

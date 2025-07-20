@@ -9,10 +9,10 @@
 
 /**
  * @brief LogFile 构造函数
- * @param basename 日志文件的基本名称，包含路径
- * @param rollSize 日志文件滚动大小阈值（字节）
+ * @param basename 日志文件的基本名称,包含路径
+ * @param rollSize 日志文件滚动大小阈值(字节)
  * @param rollMode 日志滚动模式
- * @param flushInterval 刷新间隔（秒）
+ * @param flushInterval 刷新间隔(秒)
  * @param adaptiveFlush 是否启用自适应刷新
  * @param enableLevelFlush 是否启用分级刷新策略
  */
@@ -40,7 +40,7 @@ LogFile::LogFile(const std::string &basename, off_t rollSize, RollMode rollMode,
     if (pos != std::string::npos)
     {
         std::string dir = basename.substr(0, pos);
-        // 使用系统命令创建目录，确保目录存在
+        // 使用系统命令创建目录,确保目录存在
         std::string cmd = "mkdir -p " + dir;
         system(cmd.c_str());
     }
@@ -56,7 +56,7 @@ LogFile::LogFile(const std::string &basename, off_t rollSize, RollMode rollMode,
 }
 
 /**
- * @brief 析构函数，关闭文件
+ * @brief 析构函数,关闭文件
  */
 LogFile::~LogFile()
 {
@@ -67,10 +67,10 @@ LogFile::~LogFile()
 }
 
 /**
- * @brief 向日志文件追加日志内容（线程安全版本）
+ * @brief 向日志文件追加日志内容(线程安全版本)
  * @param logline 日志内容
  * @param len 日志长度
- * @param level 日志级别，用于分级刷新策略
+ * @param level 日志级别,用于分级刷新策略
  */
 void LogFile::append(const char *logline, int len, Level level)
 {
@@ -79,7 +79,7 @@ void LogFile::append(const char *logline, int len, Level level)
 }
 
 /**
- * @brief 刷新日志文件缓冲区到磁盘（线程安全版本）
+ * @brief 刷新日志文件缓冲区到磁盘(线程安全版本)
  */
 void LogFile::flush()
 {
@@ -107,22 +107,22 @@ int LogFile::calculateAdaptiveInterval() const
     // 根据写入速率动态调整刷新间隔
     if (m_writeRate <= 10)
     {
-        // 低频写入，使用较长间隔
+        // 低频写入,使用较长间隔
         return std::min(m_flushInterval * 2, 5); // 最长5秒
     }
     else if (m_writeRate <= 100)
     {
-        // 中频写入，使用默认间隔
+        // 中频写入,使用默认间隔
         return m_flushInterval;
     }
     else if (m_writeRate <= 1000)
     {
-        // 高频写入，使用较短间隔
+        // 高频写入,使用较短间隔
         return std::max(m_flushInterval / 2, 1); // 最短1秒
     }
     else
     {
-        // 超高频写入，使用最短间隔
+        // 超高频写入,使用最短间隔
         return 1;
     }
 }
@@ -142,18 +142,18 @@ bool LogFile::shouldRollByTime(time_t now) const
     {
     case RollMode::DAILY:
     case RollMode::SIZE_DAILY:
-        // 每天滚动一次，检查当前日期是否与上次滚动日期不同
+        // 每天滚动一次,检查当前日期是否与上次滚动日期不同
         return tm_now.tm_mday != m_lastDay;
 
     case RollMode::HOURLY:
     case RollMode::SIZE_HOURLY:
-        // 每小时滚动一次，检查当前小时是否与上次滚动小时不同
+        // 每小时滚动一次,检查当前小时是否与上次滚动小时不同
         // 或者日期已经变化
         return tm_now.tm_hour != m_lastHour || tm_now.tm_mday != m_lastDay;
 
     case RollMode::MINUTELY:
     case RollMode::SIZE_MINUTELY:
-        // 每分钟滚动一次，检查当前分钟是否与上次滚动分钟不同
+        // 每分钟滚动一次,检查当前分钟是否与上次滚动分钟不同
         // 或者小时/日期已经变化
         return tm_now.tm_min != m_lastMinute ||
                tm_now.tm_hour != m_lastHour ||
@@ -161,13 +161,13 @@ bool LogFile::shouldRollByTime(time_t now) const
 
     case RollMode::SIZE:
     default:
-        // 按大小滚动时，此函数返回false
+        // 按大小滚动时,此函数返回false
         return false;
     }
 }
 
 /**
- * @brief 向日志文件追加日志内容（非线程安全版本）
+ * @brief 向日志文件追加日志内容(非线程安全版本)
  * @param logline 日志内容
  * @param len 日志长度
  * @param level 日志级别
@@ -179,7 +179,7 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
     size_t n = ::fwrite(logline, 1, len, m_file);
     size_t remain = len - n;
 
-    // 如果一次没写完，循环写入剩余部分
+    // 如果一次没写完,循环写入剩余部分
     while (remain > 0)
     {
         size_t x = ::fwrite(logline + n, 1, remain, m_file);
@@ -200,7 +200,7 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
                 ::fclose(m_file);
                 m_file = ::fopen(getLogFileName(m_basename, &m_lastRoll).c_str(), "ae");
 
-                // 3. 如果重新打开失败，尝试创建备用文件
+                // 3. 如果重新打开失败,尝试创建备用文件
                 if (!m_file)
                 {
                     std::string backupFile = m_basename + ".error.log";
@@ -270,7 +270,7 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
         }
     }
 
-    // 3. 如果前两种策略都不需要刷新，检查基本刷新间隔
+    // 3. 如果前两种策略都不需要刷新,检查基本刷新间隔
     if (!needFlush && now - m_lastFlush >= m_flushInterval)
     {
         needFlush = true;
@@ -284,20 +284,20 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
     }
 
     // 检查是否需要滚动日志文件
-    // 1. 检查按大小滚动（对纯大小模式和综合模式都适用）
+    // 1. 检查按大小滚动(对纯大小模式和综合模式都适用)
     bool needRoll = (m_count > m_rollSize &&
                      (m_rollMode == RollMode::SIZE ||
                       m_rollMode == RollMode::SIZE_DAILY ||
                       m_rollMode == RollMode::SIZE_HOURLY ||
                       m_rollMode == RollMode::SIZE_MINUTELY));
 
-    // 2. 检查按时间滚动（对纯时间模式和综合模式都适用）
+    // 2. 检查按时间滚动(对纯时间模式和综合模式都适用)
     if (!needRoll && m_rollMode != RollMode::SIZE)
     {
         needRoll = shouldRollByTime(now);
     }
 
-    // 如果需要滚动，则执行滚动
+    // 如果需要滚动,则执行滚动
     if (needRoll)
     {
         rollFile();
@@ -306,7 +306,7 @@ void LogFile::append_unlocked(const char *logline, int len, Level level)
 
 /**
  * @brief 滚动日志文件
- * @details 创建新的日志文件，关闭旧文件
+ * @details 创建新的日志文件,关闭旧文件
  * @note 该函数假设调用者已经获取了互斥锁
  */
 void LogFile::rollFile()
@@ -315,11 +315,11 @@ void LogFile::rollFile()
     // 生成新的日志文件名
     std::string filename = getLogFileName(m_basename, &now);
 
-    // 计算当天开始时间（秒）
+    // 计算当天开始时间(秒)
     // 一天有86400秒
     time_t start = now / 86400 * 86400;
 
-    // 获取当前时间的结构体，用于按时间滚动
+    // 获取当前时间的结构体,用于按时间滚动
     struct tm tm_now;
     localtime_r(&now, &tm_now);
 
@@ -330,20 +330,20 @@ void LogFile::rollFile()
         m_startOfPeriod = start; // 更新当前周期开始时间
         m_count = 0;             // 重置计数器
 
-        // 更新时间相关字段，用于按时间滚动
+        // 更新时间相关字段,用于按时间滚动
         m_lastDay = tm_now.tm_mday;
         m_lastHour = tm_now.tm_hour;
         m_lastMinute = tm_now.tm_min;
 
-        // 关闭旧文件（如果存在）
+        // 关闭旧文件(如果存在)
         if (m_file)
         {
             ::fclose(m_file);
         }
 
-        // 打开新文件，使用"ae"模式：
+        // 打开新文件,使用"ae"模式：
         // a: 追加模式
-        // e: O_CLOEXEC标志，在exec调用时关闭文件描述符
+        // e: O_CLOEXEC标志,在exec调用时关闭文件描述符
         m_file = ::fopen(filename.c_str(), "ae");
     }
 }
@@ -351,7 +351,7 @@ void LogFile::rollFile()
 /**
  * @brief 生成日志文件名
  * @param basename 基本文件名
- * @param now 当前时间指针，函数会更新此值
+ * @param now 当前时间指针,函数会更新此值
  * @return 完整的日志文件名
  * @details 文件名格式：basename.YYYYmmdd-HHMMSS.hostname.pid.log
  */

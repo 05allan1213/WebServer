@@ -10,22 +10,23 @@
 #include "InetAddress.h"
 #include "Timestamp.h"
 #include "base/noncopyable.h"
+#include "net/TimerId.h"
 
 class Channel;
 class EventLoop;
 class Socket;
 
 /**
- * @brief TCP连接类，代表一个TCP连接
+ * @brief TCP连接类,代表一个TCP连接
  *
- * TcpConnection封装了一个完整的TCP连接，包括：
- * - 连接的生命周期管理（建立、断开、销毁）
- * - 数据的收发处理（输入输出缓冲区）
- * - 各种事件回调的处理（连接、消息、写完成等）
+ * TcpConnection封装了一个完整的TCP连接,包括：
+ * - 连接的生命周期管理(建立、断开、销毁)
+ * - 数据的收发处理(输入输出缓冲区)
+ * - 各种事件回调的处理(连接、消息、写完成等)
  * - 连接状态的管理和转换
  *
- * 每个TcpConnection对象都隶属于一个EventLoop（通常是subLoop），
- * 采用智能指针管理生命周期，支持enable_shared_from_this。
+ * 每个TcpConnection对象都隶属于一个EventLoop(通常是subLoop),
+ * 采用智能指针管理生命周期,支持enable_shared_from_this。
  *
  * 设计特点：
  * - 线程安全：所有操作都在EventLoop线程中执行
@@ -50,7 +51,7 @@ public:
     /**
      * @brief 析构函数
      *
-     * 清理连接资源，关闭socket，移除Channel
+     * 清理连接资源,关闭socket,移除Channel
      */
     ~TcpConnection();
 
@@ -80,13 +81,13 @@ public:
 
     /**
      * @brief 检查连接是否已建立
-     * @return 如果连接已建立返回true，否则返回false
+     * @return 如果连接已建立返回true,否则返回false
      */
     bool connected() const { return state_ == kConnected; }
 
     /**
      * @brief 检查连接是否已断开
-     * @return 如果连接已断开返回true，否则返回false
+     * @return 如果连接已断开返回true,否则返回false
      */
     bool disconnected() const { return state_ == kDisconnected; }
 
@@ -94,14 +95,14 @@ public:
      * @brief 向对端发送数据
      * @param buf 要发送的数据字符串
      *
-     * 如果当前线程是EventLoop线程，直接发送；否则将发送操作加入队列
+     * 如果当前线程是EventLoop线程,直接发送；否则将发送操作加入队列
      */
     void send(const std::string &buf);
 
     /**
      * @brief 关闭连接
      *
-     * 关闭写端，停止发送数据，但保持读端开放
+     * 关闭写端,停止发送数据,但保持读端开放
      */
     void shutdown(); // 关闭写端
 
@@ -141,18 +142,18 @@ public:
     void setCloseCallback(const CloseCallback &cb) { closeCallback_ = cb; }
 
     /**
-     * @brief 连接建立后调用，注册Channel到Poller
+     * @brief 连接建立后调用,注册Channel到Poller
      *
-     * 由TcpServer在建立新连接时调用，设置Channel的回调函数并启用读事件监听
+     * 由TcpServer在建立新连接时调用,设置Channel的回调函数并启用读事件监听
      */
-    void connectEstablished(); // 连接建立后调用，注册Channel到Poller
+    void connectEstablished(); // 连接建立后调用,注册Channel到Poller
 
     /**
-     * @brief 连接销毁前调用，从Poller移除Channel
+     * @brief 连接销毁前调用,从Poller移除Channel
      *
-     * 由TcpServer在销毁连接时调用，清理Channel资源
+     * 由TcpServer在销毁连接时调用,清理Channel资源
      */
-    void connectDestroyed(); // 连接销毁前调用，从Poller移除Channel
+    void connectDestroyed(); // 连接销毁前调用,从Poller移除Channel
 
     // 上下文存取接口
     void setContext(const std::any &context) { context_ = context; }
@@ -181,28 +182,28 @@ private:
      * @brief 处理读事件
      * @param receiveTime 事件发生的时间戳
      *
-     * 从socket读取数据到输入缓冲区，并调用用户的消息回调函数
+     * 从socket读取数据到输入缓冲区,并调用用户的消息回调函数
      */
     void handleRead(Timestamp receiveTime);
 
     /**
      * @brief 处理写事件
      *
-     * 将输出缓冲区的数据写入socket，处理写完成回调
+     * 将输出缓冲区的数据写入socket,处理写完成回调
      */
     void handleWrite();
 
     /**
      * @brief 处理连接关闭事件
      *
-     * 处理对端关闭连接的情况，调用相应的回调函数
+     * 处理对端关闭连接的情况,调用相应的回调函数
      */
     void handleClose();
 
     /**
      * @brief 处理错误事件
      *
-     * 处理socket错误，记录错误日志
+     * 处理socket错误,记录错误日志
      */
     void handleError();
 
@@ -211,39 +212,40 @@ private:
      * @param data 要发送的数据指针
      * @param len 数据长度
      *
-     * 这是send方法的实际实现，在EventLoop线程中执行
+     * 这是send方法的实际实现,在EventLoop线程中执行
      */
     void sendInLoop(const void *data, size_t len);
 
     /**
      * @brief 在所属的EventLoop中执行关闭操作
      *
-     * 这是shutdown方法的实际实现，在EventLoop线程中执行
+     * 这是shutdown方法的实际实现,在EventLoop线程中执行
      */
     void shutdownInLoop();
 
 private:
-    EventLoop *loop_;        /**< 所属的EventLoop，通常是subLoop */
-    const std::string name_; /**< 连接名称，用于标识和日志 */
-    std::atomic_int state_;  /**< 连接状态，原子变量保证线程安全 */
-    bool reading_;           /**< 是否正在读取数据，用于控制Channel的读事件关注 */
+    EventLoop *loop_;        // 所属的EventLoop,通常是subLoop
+    const std::string name_; // 连接名称,用于标识和日志
+    std::atomic_int state_;  // 连接状态,原子变量保证线程安全
+    bool reading_;           // 是否正在读取数据,用于控制Channel的读事件关注
 
-    std::unique_ptr<Socket> socket_;   /**< 封装已连接的socket文件描述符 */
-    std::unique_ptr<Channel> channel_; /**< 封装socket对应的事件Channel */
+    std::unique_ptr<Socket> socket_;   // 封装已连接的socket文件描述符
+    std::unique_ptr<Channel> channel_; // 封装socket对应的事件Channel
 
-    const InetAddress localAddr_; /**< 本地地址信息 */
-    const InetAddress peerAddr_;  /**< 对端地址信息 */
+    const InetAddress localAddr_; // 本地地址信息
+    const InetAddress peerAddr_;  // 对端地址信息
 
-    /** @brief 用户设置的回调函数 */
-    ConnectionCallback connectionCallback_;       /**< 连接建立/断开回调 */
-    MessageCallback messageCallback_;             /**< 消息到达回调 */
-    WriteCompleteCallback writeCompleteCallback_; /**< 数据发送完毕回调（outputBuffer清空时） */
-    HighWaterMarkCallback highWaterMarkCallback_; /**< 输出缓冲区高水位回调 */
-    CloseCallback closeCallback_;                 /**< 连接关闭回调（通知TcpServer） */
-    size_t highWaterMark_;                        /**< 高水位阈值，防止发送缓冲区无限增长 */
+    // 用户设置的回调函数
+    ConnectionCallback connectionCallback_;       // 连接建立/断开回调
+    MessageCallback messageCallback_;             // 消息到达回调
+    WriteCompleteCallback writeCompleteCallback_; // 数据发送完毕回调(outputBuffer清空时)
+    HighWaterMarkCallback highWaterMarkCallback_; // 输出缓冲区高水位回调
+    CloseCallback closeCallback_;                 // 连接关闭回调(通知TcpServer)
+    size_t highWaterMark_;                        // 高水位阈值,防止发送缓冲区无限增长
+    TimerId idleTimerId_;                         // 空闲超时定时器ID
 
-    /** @brief 数据缓冲区 */
-    Buffer inputBuffer_;  /**< 接收缓冲区，存储从socket读取的数据 */
-    Buffer outputBuffer_; /**< 发送缓冲区，存储待发送到socket的数据 */
+    // 数据缓冲区
+    Buffer inputBuffer_;  // 接收缓冲区,存储从socket读取的数据
+    Buffer outputBuffer_; // 发送缓冲区,存储待发送到socket的数据
     std::any context_;
 };
