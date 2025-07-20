@@ -73,6 +73,14 @@ public:
      */
     static BaseConfig &getInstance();
 
+    /**
+     * @brief 获取配置节点
+     * @return YAML配置节点的引用
+     *
+     * 允许派生类访问配置节点
+     */
+    const YAML::Node &getConfigNode() const { return config_; }
+
 protected:
     YAML::Node config_; /**< YAML配置节点，存储解析后的配置数据 */
 

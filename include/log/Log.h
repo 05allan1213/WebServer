@@ -16,7 +16,7 @@
 #include "LogEventWrap.h"
 #include "LogAppender.h"
 #include "LogFilter.h"
-#include "base/Config.h"
+#include "base/BaseConfig.h"
 
 /**
  * @brief 初始化日志系统

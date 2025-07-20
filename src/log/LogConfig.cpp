@@ -1,5 +1,6 @@
 #include "log/LogConfig.h"
 #include "log/Log.h"
+#include "base/BaseConfig.h"
 
 /**
  * @brief 获取LogConfig单例实例
@@ -22,17 +23,21 @@ LogConfig &LogConfig::getInstance()
 void LogConfig::load(const std::string &filename)
 {
     DLOG_INFO << "LogConfig: 开始加载配置文件 " << filename;
-    config_ = YAML::LoadFile(filename);
-    DLOG_INFO << "LogConfig: 配置文件加载完成";
+
+    // 调用BaseConfig的load方法加载配置文件
+    BaseConfig::getInstance().load(filename);
+
+    // 使用BaseConfig的配置节点
+    const YAML::Node &config = BaseConfig::getInstance().getConfigNode();
 
     // 读取并记录配置值
-    std::string basename = config_["log"]["basename"].as<std::string>();
-    int rollSize = config_["log"]["roll_size"].as<int>();
-    int flushInterval = config_["log"]["flush_interval"].as<int>();
-    std::string rollMode = config_["log"]["roll_mode"].as<std::string>();
-    bool enableFile = config_["log"]["enable_file"].as<bool>();
-    std::string fileLevel = config_["log"]["file_level"].as<std::string>();
-    std::string consoleLevel = config_["log"]["console_level"].as<std::string>();
+    std::string basename = config["log"]["basename"].as<std::string>();
+    int rollSize = config["log"]["roll_size"].as<int>();
+    int flushInterval = config["log"]["flush_interval"].as<int>();
+    std::string rollMode = config["log"]["roll_mode"].as<std::string>();
+    bool enableFile = config["log"]["enable_file"].as<bool>();
+    std::string fileLevel = config["log"]["file_level"].as<std::string>();
+    std::string consoleLevel = config["log"]["console_level"].as<std::string>();
 
     DLOG_INFO << "LogConfig: 读取到配置 - basename=" << basename
               << ", roll_size=" << rollSize
@@ -111,35 +116,35 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
 
 std::string LogConfig::getBasename() const
 {
-    return config_["log"]["basename"].as<std::string>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["basename"].as<std::string>();
 }
 
 int LogConfig::getRollSize() const
 {
-    return config_["log"]["roll_size"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["roll_size"].as<int>();
 }
 
 int LogConfig::getFlushInterval() const
 {
-    return config_["log"]["flush_interval"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["flush_interval"].as<int>();
 }
 
 std::string LogConfig::getRollMode() const
 {
-    return config_["log"]["roll_mode"].as<std::string>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["roll_mode"].as<std::string>();
 }
 
 bool LogConfig::getEnableFile() const
 {
-    return config_["log"]["enable_file"].as<bool>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["enable_file"].as<bool>();
 }
 
 std::string LogConfig::getFileLevel() const
 {
-    return config_["log"]["file_level"].as<std::string>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["file_level"].as<std::string>();
 }
 
 std::string LogConfig::getConsoleLevel() const
 {
-    return config_["log"]["console_level"].as<std::string>();
+    return BaseConfig::getInstance().getConfigNode()["log"]["console_level"].as<std::string>();
 }

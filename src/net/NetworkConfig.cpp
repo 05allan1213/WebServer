@@ -10,17 +10,21 @@ NetworkConfig &NetworkConfig::getInstance()
 void NetworkConfig::load(const std::string &filename)
 {
     DLOG_INFO << "NetworkConfig: 开始加载配置文件 " << filename;
-    config_ = YAML::LoadFile(filename);
-    DLOG_INFO << "NetworkConfig: 配置文件加载完成";
+
+    // 调用BaseConfig的load方法加载配置文件
+    BaseConfig::getInstance().load(filename);
+
+    // 使用BaseConfig的配置节点
+    const YAML::Node &config = BaseConfig::getInstance().getConfigNode();
 
     // 读取并记录配置值
-    std::string ip = config_["network"]["ip"].as<std::string>();
-    int port = config_["network"]["port"].as<int>();
-    int threadNum = config_["network"]["thread_pool"]["thread_num"].as<int>();
-    int queueSize = config_["network"]["thread_pool"]["queue_size"].as<int>();
-    int keepAliveTime = config_["network"]["thread_pool"]["keep_alive_time"].as<int>();
-    int maxIdleThreads = config_["network"]["thread_pool"]["max_idle_threads"].as<int>();
-    int minIdleThreads = config_["network"]["thread_pool"]["min_idle_threads"].as<int>();
+    std::string ip = config["network"]["ip"].as<std::string>();
+    int port = config["network"]["port"].as<int>();
+    int threadNum = config["network"]["thread_pool"]["thread_num"].as<int>();
+    int queueSize = config["network"]["thread_pool"]["queue_size"].as<int>();
+    int keepAliveTime = config["network"]["thread_pool"]["keep_alive_time"].as<int>();
+    int maxIdleThreads = config["network"]["thread_pool"]["max_idle_threads"].as<int>();
+    int minIdleThreads = config["network"]["thread_pool"]["min_idle_threads"].as<int>();
 
     DLOG_INFO << "NetworkConfig: 读取到配置 - ip=" << ip
               << ", port=" << port
@@ -129,35 +133,35 @@ void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNu
 
 std::string NetworkConfig::getIp() const
 {
-    return config_["network"]["ip"].as<std::string>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["ip"].as<std::string>();
 }
 
 int NetworkConfig::getPort() const
 {
-    return config_["network"]["port"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["port"].as<int>();
 }
 
 int NetworkConfig::getThreadNum() const
 {
-    return config_["network"]["thread_pool"]["thread_num"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["thread_num"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolQueueSize() const
 {
-    return config_["network"]["thread_pool"]["queue_size"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["queue_size"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolKeepAliveTime() const
 {
-    return config_["network"]["thread_pool"]["keep_alive_time"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["keep_alive_time"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolMaxIdleThreads() const
 {
-    return config_["network"]["thread_pool"]["max_idle_threads"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["max_idle_threads"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolMinIdleThreads() const
 {
-    return config_["network"]["thread_pool"]["min_idle_threads"].as<int>();
+    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["min_idle_threads"].as<int>();
 }
