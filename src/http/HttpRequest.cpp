@@ -2,6 +2,23 @@
 #include <algorithm>
 #include <cctype>
 
+HttpRequest::HttpRequest() : method_(Method::kInvalid), version_(Version::kUnknown) {}
+
+void HttpRequest::setPath(const char *start, const char *end)
+{
+    path_.assign(start, end);
+}
+
+void HttpRequest::setQuery(const char *start, const char *end)
+{
+    query_.assign(start, end);
+}
+
+void HttpRequest::setBody(const char *start, size_t len)
+{
+    body_.assign(start, len);
+}
+
 bool HttpRequest::setMethod(const char *start, const char *end)
 {
     std::string m(start, end);

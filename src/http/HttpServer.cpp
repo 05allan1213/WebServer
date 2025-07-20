@@ -2,6 +2,15 @@
 #include <any>
 #include "log/Log.h"
 
+/**
+ * @brief HttpServer 构造函数
+ * @param loop      事件循环指针
+ * @param addr      监听地址
+ * @param name      服务器名称
+ * @param threadNum IO线程数
+ *
+ * 初始化底层TcpServer，设置连接和消息回调，配置线程数。
+ */
 HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, int threadNum)
     : server_(loop, addr, name)
 {
@@ -13,6 +22,12 @@ HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::stri
     server_.setThreadNum(threadNum);
 }
 
+/**
+ * @brief 连接建立/断开回调
+ * @param conn TCP连接指针
+ *
+ * 新连接建立时为其分配一个HttpParser实例，断开时记录日志。
+ */
 void HttpServer::onConnection(const TcpConnectionPtr &conn)
 {
     if (conn->connected())
@@ -26,6 +41,14 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
     }
 }
 
+/**
+ * @brief 消息到达回调，驱动HTTP协议解析和业务处理
+ * @param conn     TCP连接指针
+ * @param buf      输入缓冲区
+ * @param recvTime 接收时间戳
+ *
+ * 解析HTTP请求，若出错则返回400，否则调用onRequest处理业务。
+ */
 void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp recvTime)
 {
     DLOG_INFO << "收到消息: 连接=" << conn->name() << ", 数据长度=" << buf->readableBytes();
@@ -45,6 +68,14 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
     }
 }
 
+/**
+ * @brief 业务处理回调，生成HTTP响应
+ * @param conn TCP连接指针
+ * @param req  解析后的HTTP请求
+ *
+ * 调用用户设置的httpCallback_生成响应，写入缓冲区并发送。
+ * 若需要关闭连接则主动shutdown。
+ */
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
     DLOG_INFO << "处理HTTP请求: 连接=" << conn->name() << ", 路径=" << req.path();

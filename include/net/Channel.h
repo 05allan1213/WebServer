@@ -217,23 +217,23 @@ private:
     void handleEventWithGuard(Timestamp receiveTime);
 
 private:
-    EventLoop *loop_; /**< 所属的事件循环 */
-    int fd_;          /**< Poller监听的文件描述符 */
-    int events_;      /**< 注册的感兴趣事件类型 */
-    int revents_;     /**< Poller实际返回的事件类型 */
-    int index_;       /**< 供Poller使用，标记Channel在Poller中的状态 */
+    EventLoop *loop_; // 所属的事件循环
+    int fd_;          // Poller监听的文件描述符
+    int events_;      // 注册的感兴趣事件类型
+    int revents_;     // Poller实际返回的事件类型
+    int index_;       // 供Poller使用，标记Channel在Poller中的状态
 
     /** @brief 表示不同的事件类型 */
-    static const int kNoneEvent;  /**< 无事件 */
-    static const int kReadEvent;  /**< 读事件 */
-    static const int kWriteEvent; /**< 写事件 */
+    static const int kNoneEvent;  // 无事件
+    static const int kReadEvent;  // 读事件
+    static const int kWriteEvent; // 写事件
 
-    std::weak_ptr<void> tie_; /**< 弱指针，用于"绑定"上层对象，防止悬空指针 */
-    bool tied_;               /**< 标记channel是否绑定了上层对象 */
+    std::weak_ptr<void> tie_; // 弱指针，用于"绑定"上层对象，防止悬空指针
+    bool tied_;               // 标记channel是否绑定了上层对象
 
     /** @brief 具体事件的回调操作 */
-    ReadEventCallback readCallback_; /**< 读事件回调函数 */
-    EventCallback writeCallback_;    /**< 写事件回调函数 */
-    EventCallback closeCallback_;    /**< 关闭事件回调函数 */
-    EventCallback errorCallback_;    /**< 错误事件回调函数 */
+    ReadEventCallback readCallback_; // 读事件回调函数
+    EventCallback writeCallback_;    // 写事件回调函数
+    EventCallback closeCallback_;    // 关闭事件回调函数
+    EventCallback errorCallback_;    // 错误事件回调函数
 };

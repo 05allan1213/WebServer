@@ -143,23 +143,23 @@ private:
     /** @brief 用于存储Poller返回的活跃Channel列表 */
     using ChannelList = std::vector<Channel *>;
 
-    std::atomic_bool looping_; /**< 标志EventLoop是否正在运行 */
-    std::atomic_bool quit_;    /**< 标志是否请求退出EventLoop循环 */
+    std::atomic_bool looping_; // 标志EventLoop是否正在运行
+    std::atomic_bool quit_;    // 标志是否请求退出EventLoop循环
 
-    const pid_t threadId_; /**< 记录当前EventLoop所在线程的ID，用于线程安全检查 */
+    const pid_t threadId_; // 记录当前EventLoop所在线程的ID，用于线程安全检查
 
-    Timestamp pollReturnTime_;       /**< poller返回发生事件的channels的时间点 */
-    std::unique_ptr<Poller> poller_; /**< IO多路复用器，负责监听文件描述符事件 */
+    Timestamp pollReturnTime_;       // poller返回发生事件的channels的时间点
+    std::unique_ptr<Poller> poller_; // IO多路复用器，负责监听文件描述符事件
 
-    int wakeupFd_;                           /**< 用于跨线程通知的eventfd文件描述符 */
-    std::unique_ptr<Channel> wakeupChannel_; /**< 封装wakeupFd_的Channel对象 */
+    int wakeupFd_;                           // 用于跨线程通知的eventfd文件描述符
+    std::unique_ptr<Channel> wakeupChannel_; // 封装wakeupFd_的Channel对象
 
-    ChannelList activeChannels_; /**< 存储poller返回的当前有事件发生的channel列表 */
-    // Channel* currentActiveChannel_;  /**< 指向当前正在处理事件的channel */
+    ChannelList activeChannels_; // 存储poller返回的当前有事件发生的channel列表
+    // Channel* currentActiveChannel_;  // 指向当前正在处理事件的channel
 
-    std::atomic_bool callingPendingFunctors_; /**< 标志当前EventLoop是否正在执行回调操作 */
-    std::vector<Functor> pendingFunctors_;    /**< 存储EventLoop需要执行的所有回调操作 */
-    std::mutex mutex_;                        /**< 互斥锁，保护pendingFunctors_的线程安全操作 */
+    std::atomic_bool callingPendingFunctors_; // 标志当前EventLoop是否正在执行回调操作
+    std::vector<Functor> pendingFunctors_;    // 存储EventLoop需要执行的所有回调操作
+    std::mutex mutex_;                        // 互斥锁，保护pendingFunctors_的线程安全操作
 
-    std::string epollMode_; ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
+    std::string epollMode_; // epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };

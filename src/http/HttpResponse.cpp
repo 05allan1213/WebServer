@@ -1,6 +1,9 @@
 #include "http/HttpResponse.h"
 #include <cstdio>
 
+HttpResponse::HttpResponse(bool close)
+    : statusCode_(kUnknown), closeConnection_(close) {}
+
 void HttpResponse::appendToBuffer(Buffer *output) const
 {
     char buf[32];

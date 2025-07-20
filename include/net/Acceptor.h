@@ -80,9 +80,9 @@ private:
     void handleRead();
 
 private:
-    EventLoop *loop_;                             /**< 指向Acceptor所属的EventLoop（即baseLoop/mainLoop） */
-    Socket acceptSocket_;                         /**< 封装listen_fd的Socket对象 */
-    Channel acceptChannel_;                       /**< 封装listen_fd的Channel对象 */
-    NewConnectionCallback newConnectionCallback_; /**< 新连接到来时的回调函数 */
-    bool listenning_;                             /**< 当前Acceptor是否正在监听端口 */
+    EventLoop *loop_;                             // 指向Acceptor所属的EventLoop（即baseLoop/mainLoop）
+    Socket acceptSocket_;                         // 封装listen_fd的Socket对象
+    Channel acceptChannel_;                       // 封装listen_fd的Channel对象
+    NewConnectionCallback newConnectionCallback_; // 新连接到来时的回调函数
+    bool listenning_;                             // 当前Acceptor是否正在监听端口
 };

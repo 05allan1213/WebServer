@@ -152,21 +152,21 @@ public:
     const std::string &name() const { return name_; }
 
 private:
-    EventLoop *baseLoop_; /**< 用户创建的主EventLoop，负责接受新连接 */
-    std::string name_;    /**< 线程池名称，用于标识和日志 */
-    bool started_;        /**< 线程池是否已启动的标志 */
-    int threadNum_;       /**< 线程池中IO线程的数量 */
-    int next_;            /**< 用于getNextLoop()轮询的下一个索引 */
+    EventLoop *baseLoop_; // 用户创建的主EventLoop，负责接受新连接
+    std::string name_;    // 线程池名称，用于标识和日志
+    bool started_;        // 线程池是否已启动的标志
+    int threadNum_;       // 线程池中IO线程的数量
+    int next_;            // 用于getNextLoop()轮询的下一个索引
 
-    /** @brief 线程池配置参数 */
-    int queueSize_ = 1000;   /**< 任务队列大小，默认为1000 */
-    int keepAliveTime_ = 60; /**< 线程保活时间（秒），默认为60秒 */
-    int maxIdleThreads_ = 5; /**< 最大空闲线程数，默认为5 */
-    int minIdleThreads_ = 1; /**< 最小空闲线程数，默认为1 */
-    std::string epollMode_;  ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
+    // 线程池配置参数
+    int queueSize_ = 1000;   // 任务队列大小，默认为1000
+    int keepAliveTime_ = 60; // 线程保活时间（秒），默认为60秒
+    int maxIdleThreads_ = 5; // 最大空闲线程数，默认为5
+    int minIdleThreads_ = 1; // 最小空闲线程数，默认为1
+    std::string epollMode_;  // epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 
-    /** @brief 线程池管理的线程和EventLoop */
+    // 线程池管理的线程和EventLoop
     std::vector<std::unique_ptr<EventLoopThread>>
-        threads_;                    /**< 存储EventLoopThread对象的智能指针数组 */
-    std::vector<EventLoop *> loops_; /**< 存储线程池中所有EventLoop的指针 */
+        threads_;                    // 存储EventLoopThread对象的智能指针数组
+    std::vector<EventLoop *> loops_; // 存储线程池中所有EventLoop的指针
 };

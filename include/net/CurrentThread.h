@@ -25,18 +25,10 @@
  */
 namespace CurrentThread
 {
-    /**
-     * @brief 线程局部变量声明
-     *
-     * 每个线程都有一份独立的拷贝，用于缓存当前线程的TID
-     */
+    // 每个线程都有一份独立的拷贝，用于缓存当前线程的TID
     extern __thread int t_cachedTid;
 
-    /**
-     * @brief 缓存当前线程的TID
-     *
-     * 通过系统调用获取当前线程的TID并缓存到线程局部变量中
-     */
+    // 通过系统调用获取当前线程的TID并缓存到线程局部变量中
     void cacheTid();
 
     /**

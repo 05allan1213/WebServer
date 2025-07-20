@@ -4,9 +4,19 @@
 #include <unordered_map>
 #include "base/Buffer.h"
 
+/**
+ * @brief HTTP响应对象，封装响应状态、头部、消息体等信息
+ *
+ * 用法：
+ * 1. 由业务代码生成并填充
+ * 2. 通过appendToBuffer序列化为HTTP响应报文
+ */
 class HttpResponse
 {
 public:
+    /**
+     * @brief HTTP状态码枚举
+     */
     enum HttpStatusCode
     {
         kUnknown,
@@ -17,22 +27,58 @@ public:
         k500InternalServerError = 500,
     };
 
-    explicit HttpResponse(bool close) : statusCode_(kUnknown), closeConnection_(close) {}
+    /**
+     * @brief 构造函数
+     * @param close 是否关闭连接
+     */
+    explicit HttpResponse(bool close);
 
+    /**
+     * @brief 设置响应状态码
+     * @param code 状态码枚举
+     */
     void setStatusCode(HttpStatusCode code) { statusCode_ = code; }
+
+    /**
+     * @brief 设置状态消息
+     * @param message 状态消息字符串
+     */
     void setStatusMessage(const std::string &message) { statusMessage_ = message; }
-    void setCloseConnection(bool on) { closeConnection_ = on; }
-    bool closeConnection() const { return closeConnection_; }
-    void setContentType(const std::string &contentType) { addHeader("Content-Type", contentType); }
-    void addHeader(const std::string &key, const std::string &value) { headers_[key] = value; }
+
+    /**
+     * @brief 设置响应头部字段
+     * @param key   头部名
+     * @param value 头部值
+     */
+    void setHeader(const std::string &key, const std::string &value) { headers_[key] = value; }
+
+    /**
+     * @brief 设置内容类型(Content-Type)
+     * @param contentType 内容类型字符串
+     */
+    void setContentType(const std::string &contentType) { setHeader("Content-Type", contentType); }
+    /**
+     * @brief 设置响应体
+     * @param body 响应体字符串
+     */
     void setBody(const std::string &body) { body_ = body; }
 
+    /**
+     * @brief 获取是否需要关闭连接
+     * @return true表示需要关闭
+     */
+    bool closeConnection() const { return closeConnection_; }
+
+    /**
+     * @brief 序列化响应为HTTP报文，写入缓冲区
+     * @param output 输出缓冲区指针
+     */
     void appendToBuffer(Buffer *output) const;
 
 private:
-    std::unordered_map<std::string, std::string> headers_;
-    HttpStatusCode statusCode_;
-    std::string statusMessage_;
-    bool closeConnection_; // 是否需要关闭连接
-    std::string body_;
+    HttpStatusCode statusCode_;                            // 响应状态码
+    std::string statusMessage_;                            // 状态消息
+    std::unordered_map<std::string, std::string> headers_; // 响应头部
+    std::string body_;                                     // 响应体
+    bool closeConnection_;                                 // 是否关闭连接
 };

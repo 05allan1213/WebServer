@@ -74,11 +74,11 @@ private:
      */
     void threadFunc();
 
-    EventLoop *loop_;              /**< 指向在子线程中创建的EventLoop对象 */
-    bool exiting_;                 /**< 标记是否正在退出，防止重复启动 */
-    Thread thread_;                /**< 线程对象，管理线程的生命周期 */
-    std::mutex mutex_;             /**< 互斥锁，保护loop_的访问，确保线程安全 */
-    std::condition_variable cond_; /**< 条件变量，用于startLoop等待loop_初始化完成 */
-    ThreadInitCallback callback_;  /**< EventLoop创建后的初始化回调函数 */
-    std::string epollMode_;        ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
+    EventLoop *loop_;              // 指向在子线程中创建的EventLoop对象
+    bool exiting_;                 // 标记是否正在退出，防止重复启动
+    Thread thread_;                // 线程对象，管理线程的生命周期
+    std::mutex mutex_;             // 互斥锁，保护loop_的访问，确保线程安全
+    std::condition_variable cond_; // 条件变量，用于startLoop等待loop_初始化完成
+    ThreadInitCallback callback_;  // EventLoop创建后的初始化回调函数
+    std::string epollMode_;        // epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };

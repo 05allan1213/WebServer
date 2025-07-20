@@ -93,13 +93,13 @@ private:
     void update(int operation, Channel *channel);
 
 private:
-    /** @brief events_数组的初始长度，用于预分配内存 */
+    // events_数组的初始长度，用于预分配内存
     static const int kInitEventListSize = 16;
 
-    /** @brief epoll事件列表类型 */
+    // epoll事件列表类型
     using Eventlist = std::vector<epoll_event>;
 
-    int epollfd_;           /**< epoll文件描述符，由epoll_create创建 */
-    Eventlist events_;      /**< epoll_wait返回的就绪事件数组 */
-    std::string epollMode_; ///< epoll触发模式，"ET"=边缘触发，"LT"=水平触发
+    int epollfd_;           // epoll文件描述符，由epoll_create创建
+    Eventlist events_;      // epoll_wait返回的就绪事件数组
+    std::string epollMode_; // epoll触发模式，"ET"=边缘触发，"LT"=水平触发
 };

@@ -74,5 +74,5 @@ public:
     void setSockAddr(const sockaddr_in &addr) { addr_ = addr; }
 
 private:
-    sockaddr_in addr_; /**< 内部存储的socket地址结构体 */
+    sockaddr_in addr_; // 内部存储的socket地址结构体
 };

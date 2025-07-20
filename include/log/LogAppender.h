@@ -93,13 +93,13 @@ protected:
     bool shouldFilter(LogEvent::ptr event) const;
 
 protected:
-    /// 日志级别
+    // 日志级别
     Level m_level = Level::DEBUG;
-    /// 格式器
+    // 格式器
     LogFormatter::ptr m_formatter;
-    /// 互斥锁，保护多线程操作
+    // 互斥锁，保护多线程操作
     std::mutex m_mutex;
-    /// 过滤器列表
+    // 过滤器列表
     std::vector<LogFilter::ptr> m_filters;
 };
 
@@ -171,10 +171,10 @@ public:
     LogFile::RollMode getRollMode() const;
 
 private:
-    /// 日志文件名
+    // 日志文件名
     std::string m_filename;
-    /// 文件输出流
+    // 文件输出流
     std::ofstream m_filestream;
-    /// 日志滚动模式
+    // 日志滚动模式
     LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE;
 };

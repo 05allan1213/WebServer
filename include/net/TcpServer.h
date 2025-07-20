@@ -136,25 +136,25 @@ private:
     /** @brief 连接映射表类型，key为连接名称，value为连接指针 */
     using ConnectionMap = std::unordered_map<std::string, TcpConnectionPtr>;
 
-    EventLoop *loop_; /**< 主EventLoop，负责接受新连接 */
+    EventLoop *loop_; // 主EventLoop，负责接受新连接
 
-    const std::string ipPort_; /**< 服务器监听的IP:端口字符串 */
-    const std::string name_;   /**< 服务器的名称，用于标识和日志 */
+    const std::string ipPort_; // 服务器监听的IP:端口字符串
+    const std::string name_;   // 服务器的名称，用于标识和日志
 
-    std::unique_ptr<Acceptor> acceptor_; /**< 连接接受器，负责监听和接受新连接 */
+    std::unique_ptr<Acceptor> acceptor_; // 连接接受器，负责监听和接受新连接
 
     std::shared_ptr<EventLoopThreadPool>
-        threadPool_; /**< IO线程池，处理已建立连接上的IO事件 */
+        threadPool_; // IO线程池，处理已建立连接上的IO事件
 
     /** @brief 用户设置的回调函数 */
-    ConnectionCallback connectionCallback_;       /**< 连接建立/断开回调函数 */
-    MessageCallback messageCallback_;             /**< 消息（读事件）回调函数 */
-    WriteCompleteCallback writeCompleteCallback_; /**< 写完成回调函数 */
+    ConnectionCallback connectionCallback_;       // 连接建立/断开回调函数
+    MessageCallback messageCallback_;             // 消息（读事件）回调函数
+    WriteCompleteCallback writeCompleteCallback_; // 写完成回调函数
 
-    ThreadInitCallback threadInitCallback_; /**< 线程初始化回调函数 */
+    ThreadInitCallback threadInitCallback_; // 线程初始化回调函数
 
-    std::atomic_int started_; /**< 服务器是否已启动的标志，原子变量保证线程安全 */
+    std::atomic_int started_; // 服务器是否已启动的标志，原子变量保证线程安全
 
-    int nextConnId_;            /**< 为新连接分配的ID计数器 */
-    ConnectionMap connections_; /**< 存储当前服务器持有的所有活动TCP连接 */
+    int nextConnId_;            // 为新连接分配的ID计数器
+    ConnectionMap connections_; // 存储当前服务器持有的所有活动TCP连接
 };

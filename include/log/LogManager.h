@@ -88,20 +88,20 @@ private:
     LogManager();
 
 private:
-    /// 互斥锁，保证线程安全
+    // 互斥锁，保证线程安全
     std::mutex m_mutex;
-    /// 根日志器，是所有日志器的父级
+    // 根日志器，是所有日志器的父级
     Logger::ptr m_root;
-    /// 日志器映射表，按名称存储所有Logger实例
+    // 日志器映射表，按名称存储所有Logger实例
     std::map<std::string, Logger::ptr> m_loggers;
-    /// 是否已初始化标志
+    // 是否已初始化标志
     bool m_initialized = false;
-    /// 当前日志滚动模式
+    // 当前日志滚动模式
     LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE_HOURLY;
-    /// 当前日志文件基础名
+    // 当前日志文件基础名
     std::string m_logBasename;
-    /// 当前日志滚动大小
+    // 当前日志滚动大小
     off_t m_rollSize = 0;
-    /// 当前日志刷新间隔
+    // 当前日志刷新间隔
     int m_flushInterval = 0;
 };

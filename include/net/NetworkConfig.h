@@ -119,5 +119,5 @@ private:
     void validateConfig(const std::string &ip, int port, int threadNum, int queueSize,
                         int keepAliveTime, int maxIdleThreads, int minIdleThreads);
 
-    std::string epollMode_ = "LT"; ///< epoll触发模式，ET=边缘触发，LT=水平触发
+    std::string epollMode_ = "LT"; // epoll触发模式，ET=边缘触发，LT=水平触发
 };
