@@ -168,14 +168,36 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
             return;
         }
     }
-    // 未命中路由，走静态文件或自定义404
+    // 优先尝试静态文件
+    if (StaticFileHandler::handle(req, resp))
+    {
+        DLOG_INFO << "[WebServer] 静态资源处理成功: " << req.getPath();
+        return;
+    }
+    // 静态文件也没找到，才走 notFoundHandler
     if (notFoundHandler_)
     {
         notFoundHandler_(req, resp);
     }
     else
     {
-        handleStatic(req, resp);
+        std::ifstream ifs("web_static/404.html");
+        std::stringstream buffer;
+        if (ifs)
+        {
+            buffer << ifs.rdbuf();
+            resp->setStatusCode(HttpResponse::k404NotFound);
+            resp->setStatusMessage("Not Found");
+            resp->setContentType("text/html");
+            resp->setBody(buffer.str());
+        }
+        else
+        {
+            resp->setStatusCode(HttpResponse::k404NotFound);
+            resp->setStatusMessage("Not Found");
+            resp->setContentType("text/html");
+            resp->setBody("<html><body><h1>404 Not Found</h1></body></html>");
+        }
     }
 }
 
