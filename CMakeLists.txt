@@ -35,6 +35,9 @@ add_subdirectory(src)
 # 添加 yaml-cpp 依赖
 find_package(yaml-cpp REQUIRED)
 
+# 添加 jwt-cpp 依赖
+find_package(jwt-cpp REQUIRED)
+
 # --- 测试程序 ---
 #add_executable(test_log src/tests/test_log.cpp) # 测试日志模块
 #target_link_libraries(test_log PRIVATE yaml-cpp::yaml-cpp base log) # 链接 log 库
@@ -46,4 +49,4 @@ find_package(yaml-cpp REQUIRED)
 #target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base log net)
 
 add_executable(webserver src/tests/main.cpp)
-target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp mysqlclient base log net http db)
+target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient base log net http db)

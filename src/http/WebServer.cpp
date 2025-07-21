@@ -9,10 +9,14 @@
 #include <sstream>
 #include "db/DBConfig.h"
 #include "db/DBConnectionPool.h"
+#include "base/BaseConfig.h"
 #include <unordered_map>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <jwt-cpp/jwt.h>
 using json = nlohmann::json;
+
+void userLogin(const HttpRequest &req, HttpResponse *resp);
 
 /**
  * @brief 业务线程池简单占位实现(可扩展为真正的线程池)
@@ -137,6 +141,8 @@ void WebServer::initConfig()
 void WebServer::initCallbacks()
 {
     server_->setHttpCallback(std::bind(&WebServer::onHttpRequest, this, std::placeholders::_1, std::placeholders::_2));
+    // 自动注册 /api/login 路由
+    addRoute("/api/login", userLogin);
 }
 
 void WebServer::addRoute(const std::string &path, const HttpServer::HttpCallback &cb)
@@ -152,12 +158,34 @@ void WebServer::setNotFoundHandler(const HttpServer::HttpCallback &cb)
 }
 
 /**
- * @brief HTTP请求统一入口，根据 path 路由到静态或动态处理
+ * @brief HTTP请求统一入口，根据 path 路由到静态或动态处理，并对需要认证的API统一做JWT校验和user_id注入
  * @param req HTTP请求对象
  * @param resp HTTP响应对象
+ *
+ * 认证策略：
+ *   - 对 /api/ 前缀且不是 /api/login 和 /api/register 的接口，自动校验JWT。
+ *   - 认证通过后，将user_id写入HttpRequest对象，业务处理函数可直接通过req.getUserId()获取。
+ *   - 认证失败则直接返回403。
  */
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
+    // 统一认证入口：对/api/前缀且不是/api/login和/api/register的接口做JWT校验
+    if (req.getPath().rfind("/api/", 0) == 0 &&
+        req.getPath() != "/api/login" && req.getPath() != "/api/register")
+    {
+        // 需要认证
+        int user_id = -1;
+        if (!checkAuth(req, user_id))
+        {
+            resp->setStatusCode(HttpResponse::k403Forbidden);
+            resp->setStatusMessage("Unauthorized");
+            resp->setContentType("application/json");
+            resp->setBody(R"({\"error\":\"Unauthorized, please login first."})");
+            return;
+        }
+        // 认证通过，写入user_id
+        const_cast<HttpRequest &>(req).setUserId(user_id);
+    }
     // 路由分发：优先查找路由表
     {
         std::lock_guard<std::mutex> lock(routerMutex_);
@@ -259,8 +287,35 @@ static bool execSQL(MYSQL *mysql, const std::string &sql)
     return true;
 }
 
+// JWT认证检查函数
+bool checkAuth(const HttpRequest &req, int &user_id)
+{
+    auto authOpt = req.getHeader("Authorization");
+    if (!authOpt.has_value())
+        return false;
+    const std::string &auth = authOpt.value();
+    if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ")
+    {
+        std::string token = auth.substr(7);
+        try
+        {
+            auto decoded = jwt::decode(token);
+            auto verifier = jwt::verify().allow_algorithm(jwt::algorithm::hs256{"your_secret"});
+            verifier.verify(decoded);
+            user_id = std::stoi(decoded.get_payload_claim("user_id").as_string());
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
 void userRegister(const HttpRequest &req, HttpResponse *resp)
 {
+    // 允许任何人注册，不需要JWT认证
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
         resp->setStatusCode(HttpResponse::k400BadRequest);
@@ -316,6 +371,16 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
 
 void userLogin(const HttpRequest &req, HttpResponse *resp)
 {
+    // 需要JWT认证
+    int user_id = 0;
+    if (!checkAuth(req, user_id))
+    {
+        resp->setStatusCode(HttpResponse::k403Forbidden);
+        resp->setStatusMessage("Unauthorized");
+        resp->setContentType("application/json");
+        resp->setBody(R"({\"error\":\"Unauthorized, please login first."})");
+        return;
+    }
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
         resp->setStatusCode(HttpResponse::k400BadRequest);
@@ -352,19 +417,32 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         return;
     }
     char sql[256] = {0};
-    snprintf(sql, sizeof(sql), "SELECT password FROM user WHERE username='%s'", username.c_str());
+    snprintf(sql, sizeof(sql), "SELECT id, password FROM user WHERE username='%s'", username.c_str());
     if (execSQL(conn->m_conn, sql))
     {
         MYSQL_RES *res = mysql_store_result(conn->m_conn);
         if (res)
         {
             MYSQL_ROW row = mysql_fetch_row(res);
-            if (row && password == row[0])
+            if (row && password == row[1])
             {
+                int user_id = atoi(row[0]);
+                // 生成JWT
+                auto &config = BaseConfig::getInstance();
+                std::string secret = config.getJwtSecret();
+                int expire = config.getJwtExpireSeconds();
+                std::string issuer = config.getJwtIssuer();
+                auto token = jwt::create()
+                                 .set_issuer(issuer)
+                                 .set_type("JWS")
+                                 .set_payload_claim("user_id", jwt::claim(std::to_string(user_id)))
+                                 .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds(expire))
+                                 .sign(jwt::algorithm::hs256{secret});
+                json resp_json = {{"token", token}};
                 resp->setStatusCode(HttpResponse::k200Ok);
                 resp->setStatusMessage("OK");
                 resp->setContentType("application/json");
-                resp->setBody(R"({\"message\":\"Login successful."})");
+                resp->setBody(resp_json.dump());
             }
             else
             {

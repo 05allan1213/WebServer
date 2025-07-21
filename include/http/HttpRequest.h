@@ -131,6 +131,17 @@ public:
 
     void swap(HttpRequest &that);
 
+    /**
+     * @brief 设置当前请求的认证用户ID
+     * @param uid 用户ID，未认证时为-1
+     */
+    void setUserId(int uid) { user_id_ = uid; }
+    /**
+     * @brief 获取当前请求的认证用户ID
+     * @return 用户ID，未认证时为-1
+     */
+    int getUserId() const { return user_id_; }
+
 private:
     Method method_;                                        // 请求方法
     Version version_;                                      // 协议版本
@@ -138,4 +149,5 @@ private:
     std::string query_;                                    // 查询参数
     std::unordered_map<std::string, std::string> headers_; // 头部字段
     std::string body_;                                     // 消息体
+    int user_id_ = -1;                                     // 认证用户ID，-1表示未认证
 };

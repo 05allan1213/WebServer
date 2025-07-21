@@ -36,3 +36,8 @@ database:
   maxSize: 20                 # 连接池最大连接数，建议根据业务压力调整
   maxIdleTime: 60             # 连接最大空闲时间(秒)，超时将被回收
   connectionTimeout: 1000     # 获取连接的超时时间(毫秒)，超时返回nullptr
+
+jwt:
+  secret: "A7f$kLz9@3#xQw7$eRtYpLmN2sVbC4uH!pZx8Qw2#rTg6$MnB"  # JWT签名密钥
+  expire_seconds: 86400        # Token有效期（秒），如86400为24小时
+  issuer: "webserver"          # JWT签发者标识，可用于区分不同服务或环境

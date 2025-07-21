@@ -83,3 +83,16 @@ int BaseConfig::getBufferGrowthFactor() const
 {
     return config_["base"]["buffer"]["growth_factor"].as<int>();
 }
+
+std::string BaseConfig::getJwtSecret() const
+{
+    return config_["jwt"]["secret"].as<std::string>();
+}
+int BaseConfig::getJwtExpireSeconds() const
+{
+    return config_["jwt"]["expire_seconds"].as<int>();
+}
+std::string BaseConfig::getJwtIssuer() const
+{
+    return config_["jwt"]["issuer"].as<std::string>();
+}

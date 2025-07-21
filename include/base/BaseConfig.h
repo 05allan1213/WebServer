@@ -66,6 +66,22 @@ public:
     int getBufferGrowthFactor() const;
 
     /**
+     * @brief 获取JWT签名密钥
+     * @return JWT密钥字符串
+     */
+    std::string getJwtSecret() const;
+    /**
+     * @brief 获取JWT过期时间（秒）
+     * @return 过期秒数
+     */
+    int getJwtExpireSeconds() const;
+    /**
+     * @brief 获取JWT签发者
+     * @return issuer字符串
+     */
+    std::string getJwtIssuer() const;
+
+    /**
      * @brief 获取BaseConfig单例实例
      * @return BaseConfig的引用
      *

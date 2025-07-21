@@ -3,7 +3,7 @@
 #include <cctype>
 #include "log/Log.h"
 
-HttpRequest::HttpRequest() : method_(Method::kInvalid), version_(Version::kUnknown) {}
+HttpRequest::HttpRequest() : method_(Method::kInvalid), version_(Version::kUnknown), user_id_(-1) {}
 
 void HttpRequest::setPath(const char *start, const char *end)
 {
