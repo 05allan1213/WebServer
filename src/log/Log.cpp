@@ -14,7 +14,7 @@ void initLogSystem(const std::string &asyncLogBasename,
                    int asyncLogFlushInterval,
                    LogFile::RollMode rollMode)
 {
-    LogManager::getInstance().init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, rollMode);
+    LogManager::getInstance()->init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, rollMode);
 }
 
 /**
@@ -61,7 +61,7 @@ void setLoggerLevel(const std::string &name, Level level)
  */
 void setRootLoggerLevel(Level level)
 {
-    auto root = LogManager::getInstance().getRoot();
+    auto root = LogManager::getInstance()->getRoot();
     if (root)
     {
         root->setLevel(level);
@@ -75,7 +75,7 @@ void setRootLoggerLevel(Level level)
  */
 Logger::ptr getLogger(const std::string &name)
 {
-    return LogManager::getInstance().getLogger(name);
+    return LogManager::getInstance()->getLogger(name);
 }
 
 /**
@@ -84,5 +84,5 @@ Logger::ptr getLogger(const std::string &name)
  */
 void setLogRollMode(LogFile::RollMode mode)
 {
-    LogManager::getInstance().setRollMode(mode);
+    LogManager::getInstance()->setRollMode(mode);
 }

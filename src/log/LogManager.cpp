@@ -39,8 +39,8 @@ static void monitorAsyncLogging(int checkInterval)
         bool hasError = false;
 
         // 获取LogManager实例,检查是否已初始化
-        auto &logManager = LogManager::getInstance();
-        bool isInitialized = logManager.isInitialized();
+        auto logManager = LogManager::getInstance();
+        bool isInitialized = logManager->isInitialized();
 
         // 如果日志系统尚未初始化,则跳过检查
         if (!isInitialized)
@@ -80,7 +80,7 @@ static void monitorAsyncLogging(int checkInterval)
                     std::cerr << "尝试恢复异步日志系统..." << std::endl;
 
                     // 尝试重新初始化
-                    if (LogManager::getInstance().reinitializeAsyncLogging())
+                    if (LogManager::getInstance()->reinitializeAsyncLogging())
                     {
                         std::cerr << "异步日志系统恢复成功" << std::endl;
                         failureCount = 0; // 重置失败计数
@@ -159,16 +159,15 @@ LogManager::~LogManager()
     }
 }
 
-/**
- * @brief 获取LogManager单例
- * 使用C++11的局部静态变量特性实现线程安全的单例模式
- * @return LogManager单例的引用
- */
-LogManager &LogManager::getInstance()
+std::shared_ptr<LogManager> LogManager::s_instance = nullptr;
+
+std::shared_ptr<LogManager> LogManager::getInstance()
 {
-    // 线程安全的单例实现
-    static LogManager instance;
-    return instance;
+    if (!s_instance)
+    {
+        s_instance = std::shared_ptr<LogManager>(new LogManager());
+    }
+    return s_instance;
 }
 
 /**

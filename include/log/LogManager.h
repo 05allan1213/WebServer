@@ -24,7 +24,7 @@ public:
      * @brief 获取单例实例
      * @return LogManager单例的引用
      */
-    static LogManager &getInstance();
+    static std::shared_ptr<LogManager> getInstance();
 
     /**
      * @brief 析构函数,释放资源
@@ -104,4 +104,6 @@ private:
     off_t m_rollSize = 0;
     // 当前日志刷新间隔
     int m_flushInterval = 0;
+    // 单例实例,用于实现单例模式
+    static std::shared_ptr<LogManager> s_instance;
 };
