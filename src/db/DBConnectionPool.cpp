@@ -46,6 +46,7 @@ DBConnectionPool::~DBConnectionPool()
  */
 void DBConnectionPool::init(const DBConfig &config)
 {
+    DLOG_INFO << "[DBPool] init() called";
     if (!config.isValid())
     {
         DLOG_ERROR << "DBConfig invalid: " << config.getErrorMsg();

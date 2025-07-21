@@ -30,7 +30,7 @@ database:
   host: "127.0.0.1"           # 数据库主机地址，通常为本机或远程服务器IP
   user: "ayp"                 # 数据库用户名
   password: "801026qwe"       # 数据库密码
-  dbname: "test_db"           # 需要连接的数据库名
+  dbname: "webserver"         # 需要连接的数据库名
   port: 3306                  # 数据库端口号，MySQL默认3306
   initSize: 5                 # 连接池初始连接数，建议小于maxSize
   maxSize: 20                 # 连接池最大连接数，建议根据业务压力调整

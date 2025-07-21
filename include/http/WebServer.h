@@ -7,7 +7,9 @@
 #include <thread>
 #include <functional>
 #include <vector>
-#include "log/LogManager.h"
+#include "log/Log.h"
+#include <unordered_map>
+#include <mutex>
 
 class ThreadPool; // 业务线程池前置声明
 
@@ -46,6 +48,16 @@ public:
      * @param signo 信号编号
      */
     static void shutdown_handler(int signo);
+    /**
+     * @brief 注册路由
+     * @param path 路径（如 /api/hello）
+     * @param cb   处理回调
+     */
+    void addRoute(const std::string &path, const HttpServer::HttpCallback &cb);
+    /**
+     * @brief 设置未命中路由时的回调（可选）
+     */
+    void setNotFoundHandler(const HttpServer::HttpCallback &cb);
 
 private:
     /**
@@ -79,9 +91,12 @@ private:
      */
     void handleDynamic(const HttpRequest &req, HttpResponse *resp);
 
-    std::unique_ptr<EventLoop> mainLoop_;      // 主事件循环对象，负责 IO 事件分发
-    std::unique_ptr<HttpServer> server_;       // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
-    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务(可扩展)
-    std::shared_ptr<LogManager> logManager_;   // 日志管理器，保证日志系统生命周期覆盖 WebServer
-    std::atomic_bool running_;                 // 运行状态标志，线程安全
+    std::unique_ptr<EventLoop> mainLoop_;                              // 主事件循环对象，负责 IO 事件分发
+    std::unique_ptr<HttpServer> server_;                               // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
+    std::unique_ptr<ThreadPool> businessPool_;                         // 业务线程池，处理耗时任务(可扩展)
+    std::shared_ptr<LogManager> logManager_;                           // 日志管理器，保证日志系统生命周期覆盖 WebServer
+    std::atomic_bool running_;                                         // 运行状态标志，线程安全
+    std::unordered_map<std::string, HttpServer::HttpCallback> router_; // 路由表
+    std::mutex routerMutex_;                                           // 路由表线程安全
+    HttpServer::HttpCallback notFoundHandler_;                         // 404处理回调
 };
