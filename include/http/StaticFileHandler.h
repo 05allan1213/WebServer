@@ -7,7 +7,7 @@
  * @brief 静态资源处理器
  *
  * 用于处理静态文件请求，将URL路径映射到本地文件系统，并返回相应内容。
- * 支持处理常见的HTTP状态码（200、400、403、404、500等）。
+ * 支持处理常见的HTTP状态码(200、400、403、404、500等)。
  * 自动设置适当的MIME-Type和其他响应头。
  */
 class StaticFileHandler
@@ -19,7 +19,7 @@ public:
      * @param req HTTP请求对象
      * @param resp HTTP响应对象，用于填充响应内容
      * @param baseDir 静态资源根目录，默认为"web_static"
-     * @return true 表示已处理请求（无论成功与否）
+     * @return true 表示已处理请求(无论成功与否)
      * @return false 表示未命中静态资源
      *
      * 处理流程：

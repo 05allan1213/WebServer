@@ -30,7 +30,7 @@ public:
      */
     ~WebServer();
     /**
-     * @brief 启动服务器（包括日志、线程池、网络服务、主事件循环）
+     * @brief 启动服务器(包括日志、线程池、网络服务、主事件循环)
      */
     void start();
     /**
@@ -49,11 +49,11 @@ public:
 
 private:
     /**
-     * @brief 初始化日志系统（可扩展为异步/多级日志等）
+     * @brief 初始化日志系统(可扩展为异步/多级日志等)
      */
     void initLog();
     /**
-     * @brief 加载服务器配置（如IP、端口、线程数等）
+     * @brief 加载服务器配置(如IP、端口、线程数等)
      */
     void initConfig();
     /**
@@ -67,13 +67,13 @@ private:
      */
     void onHttpRequest(const HttpRequest &req, HttpResponse *resp);
     /**
-     * @brief 处理静态资源请求（如 html/css/js 等）
+     * @brief 处理静态资源请求(如 html/css/js 等)
      * @param req HTTP请求对象
      * @param resp HTTP响应对象
      */
     void handleStatic(const HttpRequest &req, HttpResponse *resp);
     /**
-     * @brief 处理动态接口请求（如 /api/ 路径）
+     * @brief 处理动态接口请求(如 /api/ 路径)
      * @param req HTTP请求对象
      * @param resp HTTP响应对象
      */
@@ -81,7 +81,7 @@ private:
 
     std::unique_ptr<EventLoop> mainLoop_;      // 主事件循环对象，负责 IO 事件分发
     std::unique_ptr<HttpServer> server_;       // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
-    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务（可扩展）
+    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务(可扩展)
     std::shared_ptr<LogManager> logManager_;   // 日志管理器，保证日志系统生命周期覆盖 WebServer
     std::atomic_bool running_;                 // 运行状态标志，线程安全
 };

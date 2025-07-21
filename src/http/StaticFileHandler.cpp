@@ -34,7 +34,7 @@ static std::string readFileOrDefault(const std::string &path, const std::string 
  * @param req   HTTP请求对象
  * @param resp  HTTP响应对象
  * @param baseDir 静态资源根目录，默认 web_static
- * @return true 表示已处理（无论成功与否），false 表示未命中静态资源
+ * @return true 表示已处理(无论成功与否)，false 表示未命中静态资源
  */
 bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const std::string &baseDir)
 {
@@ -71,7 +71,7 @@ bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const
         resp->setBody(body);
         return true;
     }
-    // 4. 检查请求是否合法（如方法、协议版本）
+    // 4. 检查请求是否合法(如方法、协议版本)
     if (req.getMethod() == HttpRequest::Method::kInvalid || req.getVersion() == HttpRequest::Version::kUnknown)
     {
         DLOG_WARN << "[StaticFileHandler] 非法请求: method=" << static_cast<int>(req.getMethod()) << ", version=" << static_cast<int>(req.getVersion());

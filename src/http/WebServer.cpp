@@ -7,9 +7,11 @@
 #include <memory>
 #include <fstream>
 #include <sstream>
+#include "db/DBConfig.h"
+#include "db/DBConnectionPool.h"
 
 /**
- * @brief 业务线程池简单占位实现（可扩展为真正的线程池）
+ * @brief 业务线程池简单占位实现(可扩展为真正的线程池)
  */
 class ThreadPool
 {
@@ -39,6 +41,18 @@ void WebServer::shutdown_handler(int signo)
  */
 void WebServer::run()
 {
+    // 1. 加载数据库配置
+    DBConfig dbConfig("configs/config.yml");
+    if (!dbConfig.isValid())
+    {
+        DLOG_FATAL << "[WebServer] 数据库配置无效: " << dbConfig.getErrorMsg();
+        throw std::runtime_error("[WebServer] 数据库配置无效: " + dbConfig.getErrorMsg());
+    }
+    DLOG_INFO << "[WebServer] 数据库配置加载成功";
+    // 2. 初始化数据库连接池
+    DBConnectionPool::getInstance()->init(dbConfig);
+    DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+    // 3. 启动WebServer
     g_server = std::make_unique<WebServer>();
     std::signal(SIGINT, shutdown_handler);
     std::signal(SIGTERM, shutdown_handler);
@@ -70,7 +84,7 @@ WebServer::~WebServer()
 }
 
 /**
- * @brief 初始化日志系统（可扩展为异步/多级日志等）
+ * @brief 初始化日志系统(可扩展为异步/多级日志等)
  */
 void WebServer::initLog()
 {
@@ -78,7 +92,7 @@ void WebServer::initLog()
 }
 
 /**
- * @brief 加载服务器配置（如IP、端口、线程数等）
+ * @brief 加载服务器配置(如IP、端口、线程数等)
  */
 void WebServer::initConfig()
 {
@@ -113,7 +127,7 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 }
 
 /**
- * @brief 处理静态资源请求（如 html/css/js 等）
+ * @brief 处理静态资源请求(如 html/css/js 等)
  * @param req HTTP请求对象
  * @param resp HTTP响应对象
  */
@@ -144,13 +158,13 @@ void WebServer::handleStatic(const HttpRequest &req, HttpResponse *resp)
 }
 
 /**
- * @brief 处理动态接口请求（如 /api/ 路径）
+ * @brief 处理动态接口请求(如 /api/ 路径)
  * @param req HTTP请求对象
  * @param resp HTTP响应对象
  */
 void WebServer::handleDynamic(const HttpRequest &req, HttpResponse *resp)
 {
-    // 业务逻辑处理（可扩展为线程池任务）
+    // 业务逻辑处理(可扩展为线程池任务)
     resp->setStatusCode(HttpResponse::k200Ok);
     resp->setStatusMessage("OK");
     resp->setContentType("application/json");
@@ -158,7 +172,7 @@ void WebServer::handleDynamic(const HttpRequest &req, HttpResponse *resp)
 }
 
 /**
- * @brief 启动服务器（包括日志、线程池、网络服务、主事件循环）
+ * @brief 启动服务器(包括日志、线程池、网络服务、主事件循环)
  */
 void WebServer::start()
 {

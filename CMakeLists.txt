@@ -45,5 +45,5 @@ find_package(yaml-cpp REQUIRED)
 #add_executable(test_config src/tests/test_config.cpp)
 #target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base log net)
 
-add_executable(test_http src/tests/test_http.cpp)
-target_link_libraries(test_http PRIVATE yaml-cpp::yaml-cpp base log net http)
+add_executable(webserver src/tests/main.cpp)
+target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp mysqlclient base log net http db)
