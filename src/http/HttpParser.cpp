@@ -78,7 +78,7 @@ bool HttpParser::parseRequest(Buffer *buf)
         {
             // For simplicity, this parser only handles requests where Content-Length is specified.
             // A more complete implementation would need to handle chunked encoding.
-            if (request_.method() == HttpRequest::Method::kPost || request_.method() == HttpRequest::Method::kPut)
+            if (request_.getMethod() == HttpRequest::Method::kPost || request_.getMethod() == HttpRequest::Method::kPut)
             {
                 auto contentLengthOpt = request_.getHeader("Content-Length");
                 if (!contentLengthOpt.has_value())
@@ -103,7 +103,7 @@ bool HttpParser::parseRequest(Buffer *buf)
 
                 if (buf->readableBytes() >= contentLength)
                 {
-                    request_.body().assign(buf->peek(), contentLength);
+                    request_.getBody().assign(buf->peek(), contentLength);
                     buf->retrieve(contentLength);
                     state_ = HttpRequestParseState::kGotAll;
                     hasMore = false;

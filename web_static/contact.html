@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>联系我</title>
+    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+    <header>
+        <h1>联系我</h1>
+        <p>随时与我取得联系</p>
+    </header>
+
+    <div class="container">
+        <nav>
+            <a href="/index.html">首页</a>
+            <a href="/about.html">关于我</a>
+            <a href="/contact.html">联系我</a>
+        </nav>
+
+        <div class="card">
+            <h2>联系方式</h2>
+            <p>我期待您的反馈和建议，可以通过以下方式与我取得联系：</p>
+
+            <div class="flex-container">
+                <div class="flex-item card">
+                    <h3>电子邮件</h3>
+                    <p>2787554820@qq.com</p>
+                </div>
+                <div class="flex-item card">
+                    <h3>GitHub</h3>
+                    <p>github.com/05allan1213</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>留言板</h2>
+            <form>
+                <div style="margin-bottom: 1rem;">
+                    <label for="name" style="display: block; margin-bottom: 0.5rem;">姓名：</label>
+                    <input type="text" id="name" name="name"
+                        style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label for="email" style="display: block; margin-bottom: 0.5rem;">邮箱：</label>
+                    <input type="email" id="email" name="email"
+                        style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label for="message" style="display: block; margin-bottom: 0.5rem;">留言：</label>
+                    <textarea id="message" name="message" rows="5"
+                        style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;"></textarea>
+                </div>
+                <button type="submit" class="btn">提交</button>
+            </form>
+        </div>
+
+        <a href="/index.html" class="btn">返回首页</a>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>© 2023 WebServer 项目演示</p>
+        </div>
+    </footer>
+</body>
+
+</html>

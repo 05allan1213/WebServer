@@ -54,7 +54,7 @@ public:
      * @brief 获取HTTP方法
      * @return Method枚举值
      */
-    Method method() const { return method_; }
+    Method getMethod() const { return method_; }
 
     /**
      * @brief 设置请求路径
@@ -67,7 +67,7 @@ public:
      * @brief 获取请求路径
      * @return 路径字符串
      */
-    const std::string &path() const { return path_; }
+    const std::string &getPath() const { return path_; }
 
     /**
      * @brief 设置查询参数
@@ -80,7 +80,7 @@ public:
      * @brief 获取查询参数
      * @return 参数字符串
      */
-    const std::string &query() const { return query_; }
+    const std::string &getQuery() const { return query_; }
 
     /**
      * @brief 设置HTTP协议版本
@@ -92,7 +92,7 @@ public:
      * @brief 获取HTTP协议版本
      * @return Version枚举值
      */
-    Version version() const { return version_; }
+    Version getVersion() const { return version_; }
 
     /**
      * @brief 添加请求头部
@@ -113,7 +113,7 @@ public:
      * @brief 获取所有头部
      * @return 头部map的常引用
      */
-    const std::unordered_map<std::string, std::string> &headers() const { return headers_; }
+    const std::unordered_map<std::string, std::string> &getHeaders() const { return headers_; }
 
     /**
      * @brief 设置消息体
@@ -126,8 +126,8 @@ public:
      * @brief 获取消息体
      * @return 消息体字符串
      */
-    const std::string &body() const { return body_; }
-    std::string &body() { return body_; }
+    const std::string &getBody() const { return body_; }
+    std::string &getBody() { return body_; }
 
     void swap(HttpRequest &that);
 

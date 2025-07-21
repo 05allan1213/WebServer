@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include "base/Buffer.h"
+#include "log/Log.h"
 
 /**
  * @brief HTTP响应对象,封装响应状态、头部、消息体等信息
@@ -19,12 +20,13 @@ public:
      */
     enum HttpStatusCode
     {
-        kUnknown,
-        k200Ok = 200,
-        k301MovedPermanently = 301,
-        k400BadRequest = 400,
-        k404NotFound = 404,
-        k500InternalServerError = 500,
+        kUnknown,                      // 未知状态码
+        k200Ok = 200,                  // 成功
+        k301MovedPermanently = 301,    // 永久重定向
+        k400BadRequest = 400,          // 请求错误
+        k403Forbidden = 403,           // 禁止访问
+        k404NotFound = 404,            // 未找到
+        k500InternalServerError = 500, // 服务器错误
     };
 
     /**
@@ -37,13 +39,21 @@ public:
      * @brief 设置响应状态码
      * @param code 状态码枚举
      */
-    void setStatusCode(HttpStatusCode code) { statusCode_ = code; }
+    void setStatusCode(HttpStatusCode code)
+    {
+        statusCode_ = code;
+        DLOG_DEBUG << "[HttpResponse] setStatusCode: " << static_cast<int>(code);
+    }
 
     /**
      * @brief 设置状态消息
      * @param message 状态消息字符串
      */
-    void setStatusMessage(const std::string &message) { statusMessage_ = message; }
+    void setStatusMessage(const std::string &message)
+    {
+        statusMessage_ = message;
+        DLOG_DEBUG << "[HttpResponse] setStatusMessage: " << message;
+    }
 
     /**
      * @brief 设置响应头部字段
@@ -56,12 +66,20 @@ public:
      * @brief 设置内容类型(Content-Type)
      * @param contentType 内容类型字符串
      */
-    void setContentType(const std::string &contentType) { setHeader("Content-Type", contentType); }
+    void setContentType(const std::string &contentType)
+    {
+        setHeader("Content-Type", contentType);
+        DLOG_DEBUG << "[HttpResponse] setContentType: " << contentType;
+    }
     /**
      * @brief 设置响应体
      * @param body 响应体字符串
      */
-    void setBody(const std::string &body) { body_ = body; }
+    void setBody(const std::string &body)
+    {
+        body_ = body;
+        DLOG_DEBUG << "[HttpResponse] setBody, 长度: " << body.size();
+    }
 
     /**
      * @brief 获取是否需要关闭连接
@@ -74,6 +92,15 @@ public:
      * @param output 输出缓冲区指针
      */
     void appendToBuffer(Buffer *output) const;
+
+    // 设置 Content-Length
+    void setContentLength(size_t length);
+    // 设置 Last-Modified
+    void setLastModified(const std::string &time);
+    // 设置 ETag
+    void setETag(const std::string &etag);
+    // 设置 Cache-Control
+    void setCacheControl(const std::string &value);
 
 private:
     HttpStatusCode statusCode_;                            // 响应状态码

@@ -62,7 +62,7 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
     }
     if (parser->gotAll())
     {
-        DLOG_INFO << "HTTP请求解析完成: 连接=" << conn->name() << ", 请求路径=" << parser->request().path();
+        DLOG_INFO << "HTTP请求解析完成: 连接=" << conn->name() << ", 请求路径=" << parser->request().getPath();
         onRequest(conn, parser->request());
         parser->reset();
     }
@@ -78,10 +78,10 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
  */
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
-    DLOG_INFO << "处理HTTP请求: 连接=" << conn->name() << ", 路径=" << req.path();
+    DLOG_INFO << "处理HTTP请求: 连接=" << conn->name() << ", 路径=" << req.getPath();
     const std::string &connection = req.getHeader("Connection").value_or("close");
     bool close = (connection == "close") ||
-                 (req.version() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
+                 (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
     HttpResponse response(close);
     if (httpCallback_)
         httpCallback_(req, &response);

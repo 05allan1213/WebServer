@@ -1,22 +1,26 @@
 #include "http/HttpRequest.h"
 #include <algorithm>
 #include <cctype>
+#include "log/Log.h"
 
 HttpRequest::HttpRequest() : method_(Method::kInvalid), version_(Version::kUnknown) {}
 
 void HttpRequest::setPath(const char *start, const char *end)
 {
     path_.assign(start, end);
+    DLOG_DEBUG << "[HttpRequest] setPath: " << path_;
 }
 
 void HttpRequest::setQuery(const char *start, const char *end)
 {
     query_.assign(start, end);
+    DLOG_DEBUG << "[HttpRequest] setQuery: " << query_;
 }
 
 void HttpRequest::setBody(const char *start, size_t len)
 {
     body_.assign(start, len);
+    DLOG_DEBUG << "[HttpRequest] setBody, 长度: " << len;
 }
 
 bool HttpRequest::setMethod(const char *start, const char *end)
@@ -46,6 +50,7 @@ bool HttpRequest::setMethod(const char *start, const char *end)
     {
         method_ = Method::kInvalid;
     }
+    DLOG_DEBUG << "[HttpRequest] setMethod: " << m << ", 结果: " << static_cast<int>(method_);
     return method_ != Method::kInvalid;
 }
 
@@ -67,6 +72,7 @@ void HttpRequest::addHeader(const char *start, const char *colon, const char *en
     value.erase(value.find_last_not_of(" \t") + 1);
 
     headers_[field] = value;
+    DLOG_DEBUG << "[HttpRequest] addHeader: '" << field << "' = '" << value << "'";
 }
 
 std::optional<std::string> HttpRequest::getHeader(const std::string &field) const
