@@ -75,6 +75,9 @@
                     data = {};
                 }
                 if (res.ok) {
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
                     msg.style.color = 'green';
                     msg.textContent = '登录成功，正在跳转...';
                     setTimeout(() => { window.location.href = '/index.html'; }, 1200);

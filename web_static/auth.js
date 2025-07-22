@@ -7,8 +7,23 @@
     function setUsername(name) {
         localStorage.setItem('username', name);
     }
+    // 获取JWT token
+    function getToken() {
+        return localStorage.getItem('token');
+    }
+    // 封装fetch，自动带token
+    window.jwtFetch = async function(url, options={}) {
+        options.headers = options.headers || {};
+        const token = getToken();
+        if (token) {
+            options.headers['Authorization'] = 'Bearer ' + token;
+        }
+        return fetch(url, options);
+    }
+    // 退出登录时清除token和username
     function clearAuth() {
         localStorage.removeItem('username');
+        localStorage.removeItem('token');
     }
     function renderAuthArea() {
         var area = document.getElementById('authArea');
@@ -61,6 +76,10 @@
     // 注册/登录页已登录自动跳转首页
     if ((window.location.pathname === '/login.html' || window.location.pathname === '/register.html') && getUsername()) {
         window.location.href = '/index.html';
+    }
+    // 受保护页面自动跳转登录
+    if (window.location.pathname.startsWith('/protected') && !getToken()) {
+        window.location.href = '/login.html';
     }
     // 渲染导航栏
     document.addEventListener('DOMContentLoaded', renderAuthArea);

@@ -84,6 +84,7 @@
                     data = {};
                 }
                 if (res.ok) {
+                    localStorage.removeItem('token');
                     msg.style.color = 'green';
                     msg.textContent = '注册成功，正在跳转...';
                     setTimeout(() => { window.location.href = '/login.html'; }, 1200);
