@@ -17,6 +17,7 @@
 using json = nlohmann::json;
 
 void userLogin(const HttpRequest &req, HttpResponse *resp);
+void userRegister(const HttpRequest &req, HttpResponse *resp);
 
 /**
  * @brief 业务线程池简单占位实现(可扩展为真正的线程池)
@@ -141,8 +142,9 @@ void WebServer::initConfig()
 void WebServer::initCallbacks()
 {
     server_->setHttpCallback(std::bind(&WebServer::onHttpRequest, this, std::placeholders::_1, std::placeholders::_2));
-    // 自动注册 /api/login 路由
+    // 自动注册 /api/login 和 /api/register 路由
     addRoute("/api/login", userLogin);
+    addRoute("/api/register", userRegister);
 }
 
 void WebServer::addRoute(const std::string &path, const HttpServer::HttpCallback &cb)
@@ -180,7 +182,7 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
             resp->setStatusCode(HttpResponse::k403Forbidden);
             resp->setStatusMessage("Unauthorized");
             resp->setContentType("application/json");
-            resp->setBody(R"({\"error\":\"Unauthorized, please login first."})");
+            resp->setBody(R"({"error":"Unauthorized, please login first."})");
             return;
         }
         // 认证通过，写入user_id
@@ -315,13 +317,12 @@ bool checkAuth(const HttpRequest &req, int &user_id)
 
 void userRegister(const HttpRequest &req, HttpResponse *resp)
 {
-    // 允许任何人注册，不需要JWT认证
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Method Not Allowed\"})");
+        resp->setBody(R"({"error":"Method Not Allowed"})");
         return;
     }
     std::string username, password;
@@ -336,7 +337,7 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Invalid JSON format or missing fields.\"})");
+        resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
         DLOG_WARN << "JSON parse error: " << e.what();
         return;
     }
@@ -347,7 +348,7 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Server internal error: cannot connect to DB.\"})");
+        resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
         DLOG_ERROR << "Failed to get DB connection for registration.";
         return;
     }
@@ -358,35 +359,25 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Conflict");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Username already exists.\"})");
+        resp->setBody(R"({"error":"Username already exists."})");
     }
     else
     {
         resp->setStatusCode(HttpResponse::k200Ok);
         resp->setStatusMessage("Created");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"message\":\"User registered successfully."})");
+        resp->setBody(R"({"message":"User registered successfully."})");
     }
 }
 
 void userLogin(const HttpRequest &req, HttpResponse *resp)
 {
-    // 需要JWT认证
-    int user_id = 0;
-    if (!checkAuth(req, user_id))
-    {
-        resp->setStatusCode(HttpResponse::k403Forbidden);
-        resp->setStatusMessage("Unauthorized");
-        resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Unauthorized, please login first."})");
-        return;
-    }
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Method Not Allowed\"})");
+        resp->setBody(R"({"error":"Method Not Allowed"})");
         return;
     }
     std::string username, password;
@@ -401,7 +392,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Invalid JSON format or missing fields.\"})");
+        resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
         DLOG_WARN << "JSON parse error: " << e.what();
         return;
     }
@@ -412,7 +403,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Server internal error: cannot connect to DB.\"})");
+        resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
         DLOG_ERROR << "Failed to get DB connection for login.";
         return;
     }
@@ -424,10 +415,16 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         if (res)
         {
             MYSQL_ROW row = mysql_fetch_row(res);
-            if (row && password == row[1])
+            if (!row)
+            {
+                resp->setStatusCode(HttpResponse::k400BadRequest);
+                resp->setStatusMessage("Unauthorized");
+                resp->setContentType("application/json");
+                resp->setBody(R"({"error":"未注册请先注册"})");
+            }
+            else if (password == row[1])
             {
                 int user_id = atoi(row[0]);
-                // 生成JWT
                 auto &config = BaseConfig::getInstance();
                 std::string secret = config.getJwtSecret();
                 int expire = config.getJwtExpireSeconds();
@@ -449,7 +446,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
                 resp->setStatusCode(HttpResponse::k400BadRequest);
                 resp->setStatusMessage("Unauthorized");
                 resp->setContentType("application/json");
-                resp->setBody(R"({\"error\":\"Invalid username or password."})");
+                resp->setBody(R"({"error":"用户名或密码错误"})");
             }
             mysql_free_result(res);
         }
@@ -458,7 +455,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
             resp->setStatusCode(HttpResponse::k400BadRequest);
             resp->setStatusMessage("Unauthorized");
             resp->setContentType("application/json");
-            resp->setBody(R"({\"error\":\"Invalid username or password."})");
+            resp->setBody(R"({"error":"未注册请先注册"})");
         }
     }
     else
@@ -466,7 +463,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
-        resp->setBody(R"({\"error\":\"Server internal error: query failed."})");
+        resp->setBody(R"({"error":"Server internal error: query failed."})");
     }
 }
 
