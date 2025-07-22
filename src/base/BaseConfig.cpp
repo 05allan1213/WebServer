@@ -71,28 +71,55 @@ BaseConfig &BaseConfig::getInstance()
 
 int BaseConfig::getBufferInitialSize() const
 {
+    if (!config_["base"]["buffer"]["initial_size"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 base.buffer.initial_size 缺失，使用默认值 1024";
+        return 1024;
+    }
     return config_["base"]["buffer"]["initial_size"].as<int>();
 }
-
 int BaseConfig::getBufferMaxSize() const
 {
+    if (!config_["base"]["buffer"]["max_size"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 base.buffer.max_size 缺失，使用默认值 65536";
+        return 65536;
+    }
     return config_["base"]["buffer"]["max_size"].as<int>();
 }
-
 int BaseConfig::getBufferGrowthFactor() const
 {
+    if (!config_["base"]["buffer"]["growth_factor"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 base.buffer.growth_factor 缺失，使用默认值 2";
+        return 2;
+    }
     return config_["base"]["buffer"]["growth_factor"].as<int>();
 }
-
 std::string BaseConfig::getJwtSecret() const
 {
+    if (!config_["jwt"]["secret"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 jwt.secret 缺失，使用默认值 'default_secret'";
+        return "default_secret";
+    }
     return config_["jwt"]["secret"].as<std::string>();
 }
 int BaseConfig::getJwtExpireSeconds() const
 {
+    if (!config_["jwt"]["expire_seconds"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 jwt.expire_seconds 缺失，使用默认值 86400";
+        return 86400;
+    }
     return config_["jwt"]["expire_seconds"].as<int>();
 }
 std::string BaseConfig::getJwtIssuer() const
 {
+    if (!config_["jwt"]["issuer"])
+    {
+        DLOG_WARN << "[BaseConfig] 配置项 jwt.issuer 缺失，使用默认值 'webserver'";
+        return "webserver";
+    }
     return config_["jwt"]["issuer"].as<std::string>();
 }

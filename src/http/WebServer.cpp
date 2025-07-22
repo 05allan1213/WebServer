@@ -50,31 +50,22 @@ void WebServer::shutdown_handler(int signo)
  */
 void WebServer::run()
 {
-    /**
-     * @brief 初始化数据库配置和连接池，必须在 TcpServer 创建前完成
-     *
-     * 1. 加载数据库配置文件，校验有效性。
-     * 2. 初始化数据库连接池，创建初始连接。
-     * 这样可确保在第一个 HTTP 请求到来时，连接池已就绪。
-     *
-     * @throws std::runtime_error 如果数据库配置无效，直接终止服务启动。
-     */
-    // 1. 加载数据库配置
-    DBConfig dbConfig("configs/config.yml");
-    if (!dbConfig.isValid())
+    try
     {
-        DLOG_FATAL << "[WebServer] 数据库配置无效: " << dbConfig.getErrorMsg();
-        throw std::runtime_error("[WebServer] 数据库配置无效: " + dbConfig.getErrorMsg());
+        DBConfig dbConfig("configs/config.yml");
+        DLOG_INFO << "[WebServer] 数据库配置加载成功";
+        DBConnectionPool::getInstance()->init(dbConfig);
+        DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+        g_server = std::make_unique<WebServer>();
+        std::signal(SIGINT, shutdown_handler);
+        std::signal(SIGTERM, shutdown_handler);
+        g_server->start();
     }
-    DLOG_INFO << "[WebServer] 数据库配置加载成功";
-    // 2. 初始化数据库连接池
-    DBConnectionPool::getInstance()->init(dbConfig);
-    DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
-    // 3. 启动WebServer
-    g_server = std::make_unique<WebServer>();
-    std::signal(SIGINT, shutdown_handler);
-    std::signal(SIGTERM, shutdown_handler);
-    g_server->start();
+    catch (const std::exception &e)
+    {
+        DLOG_FATAL << "[WebServer] 数据库配置无效: " << e.what();
+        throw;
+    }
 }
 
 /**
@@ -85,24 +76,18 @@ WebServer::WebServer() : running_(false)
     logManager_ = LogManager::getInstance();
     initLog();
     initConfig();
-    /**
-     * @brief 初始化数据库配置和连接池，必须在 TcpServer 创建前完成
-     *
-     * 1. 加载数据库配置文件，校验有效性。
-     * 2. 初始化数据库连接池，创建初始连接。
-     * 这样可确保在第一个 HTTP 请求到来时，连接池已就绪。
-     *
-     * @throws std::runtime_error 如果数据库配置无效，直接终止服务启动。
-     */
-    DBConfig dbConfig("configs/config.yml");
-    if (!dbConfig.isValid())
+    try
     {
-        DLOG_FATAL << "[WebServer] 数据库配置无效: " << dbConfig.getErrorMsg();
-        throw std::runtime_error("[WebServer] 数据库配置无效: " + dbConfig.getErrorMsg());
+        DBConfig dbConfig("configs/config.yml");
+        DLOG_INFO << "[WebServer] 数据库配置加载成功";
+        DBConnectionPool::getInstance()->init(dbConfig);
+        DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
     }
-    DLOG_INFO << "[WebServer] 数据库配置加载成功";
-    DBConnectionPool::getInstance()->init(dbConfig);
-    DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+    catch (const std::exception &e)
+    {
+        DLOG_FATAL << "[WebServer] 数据库配置无效: " << e.what();
+        throw;
+    }
     mainLoop_ = std::make_unique<EventLoop>(NetworkConfig::getInstance().getEpollMode());
     const auto &netConfig = NetworkConfig::getInstance();
     InetAddress addr(netConfig.getPort(), netConfig.getIp());

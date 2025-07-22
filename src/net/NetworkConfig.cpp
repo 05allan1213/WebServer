@@ -9,71 +9,32 @@ NetworkConfig &NetworkConfig::getInstance()
 
 void NetworkConfig::load(const std::string &filename)
 {
-    DLOG_INFO << "NetworkConfig: 开始加载配置文件 " << filename;
-
-    // 调用BaseConfig的load方法加载配置文件
+    DLOG_INFO << "[NetworkConfig] 开始加载网络配置文件: " << filename;
     BaseConfig::getInstance().load(filename);
-
-    // 使用BaseConfig的配置节点
+    DLOG_INFO << "[NetworkConfig] BaseConfig 加载完成，开始读取网络配置参数";
     const YAML::Node &config = BaseConfig::getInstance().getConfigNode();
-
-    // 读取并记录配置值
-    std::string ip = config["network"]["ip"].as<std::string>();
-    int port = config["network"]["port"].as<int>();
-    int threadNum = config["network"]["thread_pool"]["thread_num"].as<int>();
-    int queueSize = config["network"]["thread_pool"]["queue_size"].as<int>();
-    int keepAliveTime = config["network"]["thread_pool"]["keep_alive_time"].as<int>();
-    int maxIdleThreads = config["network"]["thread_pool"]["max_idle_threads"].as<int>();
-    int minIdleThreads = config["network"]["thread_pool"]["min_idle_threads"].as<int>();
-
-    // 读取epoll模式,默认LT
-    if (config["network"]["epoll_mode"])
-    {
-        epollMode_ = config["network"]["epoll_mode"].as<std::string>();
-        if (epollMode_ != "ET" && epollMode_ != "LT")
-        {
-            DLOG_ERROR << "NetworkConfig: epoll_mode配置非法,必须为ET或LT,当前值: " << epollMode_ << ",已重置为LT";
-            epollMode_ = "LT";
-        }
-    }
-    else
-    {
-        epollMode_ = "LT";
-    }
-    DLOG_INFO << "NetworkConfig: epoll_mode=" << epollMode_;
-
-    // 读取空闲超时时间,默认30秒
-    if (config["network"]["idle_timeout"])
-    {
-        idleTimeout_ = config["network"]["idle_timeout"].as<int>();
-    }
-    else
-    {
-        idleTimeout_ = 30;
-    }
-    DLOG_INFO << "NetworkConfig: idle_timeout=" << idleTimeout_;
-
-    DLOG_INFO << "NetworkConfig: 读取到配置 - ip=" << ip
+    std::string ip = config["network"]["ip"] ? config["network"]["ip"].as<std::string>() : "127.0.0.1";
+    int port = config["network"]["port"] ? config["network"]["port"].as<int>() : 8080;
+    int threadNum = config["network"]["thread_pool"] && config["network"]["thread_pool"]["thread_num"] ? config["network"]["thread_pool"]["thread_num"].as<int>() : 3;
+    int queueSize = config["network"]["thread_pool"] && config["network"]["thread_pool"]["queue_size"] ? config["network"]["thread_pool"]["queue_size"].as<int>() : 1000;
+    int keepAliveTime = config["network"]["thread_pool"] && config["network"]["thread_pool"]["keep_alive_time"] ? config["network"]["thread_pool"]["keep_alive_time"].as<int>() : 60;
+    int maxIdleThreads = config["network"]["thread_pool"] && config["network"]["thread_pool"]["max_idle_threads"] ? config["network"]["thread_pool"]["max_idle_threads"].as<int>() : 5;
+    int minIdleThreads = config["network"]["thread_pool"] && config["network"]["thread_pool"]["min_idle_threads"] ? config["network"]["thread_pool"]["min_idle_threads"].as<int>() : 1;
+    std::string epollMode = config["network"]["epoll_mode"] ? config["network"]["epoll_mode"].as<std::string>() : "LT";
+    int idleTimeout = config["network"]["idle_timeout"] ? config["network"]["idle_timeout"].as<int>() : 30;
+    DLOG_INFO << "[NetworkConfig] 读取到配置: ip=" << ip
               << ", port=" << port
               << ", thread_num=" << threadNum
               << ", queue_size=" << queueSize
               << ", keep_alive_time=" << keepAliveTime
               << ", max_idle_threads=" << maxIdleThreads
-              << ", min_idle_threads=" << minIdleThreads;
-
-    // 验证配置
+              << ", min_idle_threads=" << minIdleThreads
+              << ", epoll_mode=" << epollMode
+              << ", idle_timeout=" << idleTimeout;
     validateConfig(ip, port, threadNum, queueSize, keepAliveTime, maxIdleThreads, minIdleThreads);
-    // 验证 idleTimeout_
-    if (idleTimeout_ <= 0)
-    {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.idle_timeout 必须大于0,当前值: " << idleTimeout_;
-        throw std::invalid_argument("network.idle_timeout 必须大于0");
-    }
-    if (idleTimeout_ > 3600)
-    {
-        DLOG_ERROR << "NetworkConfig: 配置验证失败 - network.idle_timeout 不能超过3600秒,当前值: " << idleTimeout_;
-        throw std::invalid_argument("network.idle_timeout 不能超过3600秒");
-    }
+    DLOG_INFO << "[NetworkConfig] 网络配置校验通过";
+    epollMode_ = epollMode;
+    idleTimeout_ = idleTimeout;
 }
 
 void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNum, int queueSize,
@@ -171,37 +132,79 @@ void NetworkConfig::validateConfig(const std::string &ip, int port, int threadNu
 
 std::string NetworkConfig::getIp() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["ip"].as<std::string>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["ip"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.ip 缺失，使用默认值 127.0.0.1";
+        return "127.0.0.1";
+    }
+    return node["network"]["ip"].as<std::string>();
 }
 
 int NetworkConfig::getPort() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["port"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["port"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.port 缺失，使用默认值 8080";
+        return 8080;
+    }
+    return node["network"]["port"].as<int>();
 }
 
 int NetworkConfig::getThreadNum() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["thread_num"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["thread_pool"] || !node["network"]["thread_pool"]["thread_num"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.thread_pool.thread_num 缺失，使用默认值 3";
+        return 3;
+    }
+    return node["network"]["thread_pool"]["thread_num"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolQueueSize() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["queue_size"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["thread_pool"] || !node["network"]["thread_pool"]["queue_size"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.thread_pool.queue_size 缺失，使用默认值 1000";
+        return 1000;
+    }
+    return node["network"]["thread_pool"]["queue_size"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolKeepAliveTime() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["keep_alive_time"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["thread_pool"] || !node["network"]["thread_pool"]["keep_alive_time"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.thread_pool.keep_alive_time 缺失，使用默认值 60";
+        return 60;
+    }
+    return node["network"]["thread_pool"]["keep_alive_time"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolMaxIdleThreads() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["max_idle_threads"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["thread_pool"] || !node["network"]["thread_pool"]["max_idle_threads"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.thread_pool.max_idle_threads 缺失，使用默认值 5";
+        return 5;
+    }
+    return node["network"]["thread_pool"]["max_idle_threads"].as<int>();
 }
 
 int NetworkConfig::getThreadPoolMinIdleThreads() const
 {
-    return BaseConfig::getInstance().getConfigNode()["network"]["thread_pool"]["min_idle_threads"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["network"] || !node["network"]["thread_pool"] || !node["network"]["thread_pool"]["min_idle_threads"])
+    {
+        DLOG_WARN << "[NetworkConfig] 配置项 network.thread_pool.min_idle_threads 缺失，使用默认值 1";
+        return 1;
+    }
+    return node["network"]["thread_pool"]["min_idle_threads"].as<int>();
 }
 
 std::string NetworkConfig::getEpollMode() const

@@ -22,29 +22,19 @@ LogConfig &LogConfig::getInstance()
  */
 void LogConfig::load(const std::string &filename)
 {
-    DLOG_INFO << "LogConfig: 开始加载配置文件 " << filename;
-
-    // 调用BaseConfig的load方法加载配置文件
+    DLOG_INFO << "[LogConfig] 开始加载日志配置文件: " << filename;
     BaseConfig::getInstance().load(filename);
-
-    // 使用BaseConfig的配置节点
+    DLOG_INFO << "[LogConfig] BaseConfig 加载完成，开始读取日志配置参数";
     const YAML::Node &config = BaseConfig::getInstance().getConfigNode();
-
-    // 读取并记录配置值
-    std::string basename = config["log"]["basename"].as<std::string>();
-    int rollSize = config["log"]["roll_size"].as<int>();
-    int flushInterval = config["log"]["flush_interval"].as<int>();
-    std::string rollMode = config["log"]["roll_mode"].as<std::string>();
-    bool enableFile = config["log"]["enable_file"].as<bool>();
-    bool enableAsync = true;
-    if (config["log"]["enable_async"])
-    {
-        enableAsync = config["log"]["enable_async"].as<bool>();
-    }
-    std::string fileLevel = config["log"]["file_level"].as<std::string>();
-    std::string consoleLevel = config["log"]["console_level"].as<std::string>();
-
-    DLOG_INFO << "LogConfig: 读取到配置 - basename=" << basename
+    std::string basename = config["log"]["basename"] ? config["log"]["basename"].as<std::string>() : "logs/server";
+    int rollSize = config["log"]["roll_size"] ? config["log"]["roll_size"].as<int>() : 1048576;
+    int flushInterval = config["log"]["flush_interval"] ? config["log"]["flush_interval"].as<int>() : 1;
+    std::string rollMode = config["log"]["roll_mode"] ? config["log"]["roll_mode"].as<std::string>() : "SIZE_HOURLY";
+    bool enableFile = config["log"]["enable_file"] ? config["log"]["enable_file"].as<bool>() : true;
+    bool enableAsync = config["log"]["enable_async"] ? config["log"]["enable_async"].as<bool>() : true;
+    std::string fileLevel = config["log"]["file_level"] ? config["log"]["file_level"].as<std::string>() : "DEBUG";
+    std::string consoleLevel = config["log"]["console_level"] ? config["log"]["console_level"].as<std::string>() : "WARN";
+    DLOG_INFO << "[LogConfig] 读取到配置: basename=" << basename
               << ", roll_size=" << rollSize
               << ", flush_interval=" << flushInterval
               << ", roll_mode=" << rollMode
@@ -52,9 +42,8 @@ void LogConfig::load(const std::string &filename)
               << ", enable_async=" << enableAsync
               << ", file_level=" << fileLevel
               << ", console_level=" << consoleLevel;
-
-    // 验证配置
     validateConfig(basename, rollSize, flushInterval, rollMode, fileLevel, consoleLevel);
+    DLOG_INFO << "[LogConfig] 日志配置校验通过";
 }
 
 /**
@@ -122,45 +111,88 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
 
 std::string LogConfig::getBasename() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["basename"].as<std::string>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["basename"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.basename 缺失，使用默认值 logs/server";
+        return "logs/server";
+    }
+    return node["log"]["basename"].as<std::string>();
 }
 
 int LogConfig::getRollSize() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["roll_size"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["roll_size"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.roll_size 缺失，使用默认值 1048576";
+        return 1048576;
+    }
+    return node["log"]["roll_size"].as<int>();
 }
 
 int LogConfig::getFlushInterval() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["flush_interval"].as<int>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["flush_interval"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.flush_interval 缺失，使用默认值 1";
+        return 1;
+    }
+    return node["log"]["flush_interval"].as<int>();
 }
 
 std::string LogConfig::getRollMode() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["roll_mode"].as<std::string>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["roll_mode"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.roll_mode 缺失，使用默认值 SIZE_HOURLY";
+        return "SIZE_HOURLY";
+    }
+    return node["log"]["roll_mode"].as<std::string>();
 }
 
 bool LogConfig::getEnableFile() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["enable_file"].as<bool>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["enable_file"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.enable_file 缺失，使用默认值 true";
+        return true;
+    }
+    return node["log"]["enable_file"].as<bool>();
 }
 
 bool LogConfig::getEnableAsync() const
 {
     const auto &node = BaseConfig::getInstance().getConfigNode();
-    if (node["log"] && node["log"]["enable_async"])
+    if (!node["log"] || !node["log"]["enable_async"])
     {
-        return node["log"]["enable_async"].as<bool>();
+        DLOG_WARN << "[LogConfig] 配置项 log.enable_async 缺失，使用默认值 true";
+        return true;
     }
-    return true; // 默认启用异步
+    return node["log"]["enable_async"].as<bool>();
 }
 
 std::string LogConfig::getFileLevel() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["file_level"].as<std::string>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["file_level"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.file_level 缺失，使用默认值 DEBUG";
+        return "DEBUG";
+    }
+    return node["log"]["file_level"].as<std::string>();
 }
 
 std::string LogConfig::getConsoleLevel() const
 {
-    return BaseConfig::getInstance().getConfigNode()["log"]["console_level"].as<std::string>();
+    const auto &node = BaseConfig::getInstance().getConfigNode();
+    if (!node["log"] || !node["log"]["console_level"])
+    {
+        DLOG_WARN << "[LogConfig] 配置项 log.console_level 缺失，使用默认值 WARN";
+        return "WARN";
+    }
+    return node["log"]["console_level"].as<std::string>();
 }
