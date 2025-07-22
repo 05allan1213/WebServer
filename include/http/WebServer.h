@@ -100,3 +100,6 @@ private:
     std::mutex routerMutex_;                                           // 路由表线程安全
     HttpServer::HttpCallback notFoundHandler_;                         // 404处理回调
 };
+
+// JWT认证检查函数声明
+bool checkAuth(const HttpRequest &req, int &user_id);
