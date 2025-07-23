@@ -67,6 +67,6 @@ target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysq
 # target_link_libraries(test_eventloopthreadpool PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient GTest::gtest_main base log net http db)
 # add_test(NAME EventLoopThreadPoolTest COMMAND test_eventloopthreadpool)
 
-# add_executable(test_dbconnectionpool src/tests/test_dbconnectionpool.cpp src/db/DBConnectionPool.cpp src/db/DBConfig.cpp)
-# target_link_libraries(test_dbconnectionpool PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient GTest::gtest_main base log net http db)
-# add_test(NAME DBConnectionPoolTest COMMAND test_dbconnectionpool)
+#add_executable(test_dbconnectionpool src/tests/test_dbconnectionpool.cpp src/db/DBConnectionPool.cpp src/db/DBConfig.cpp)
+#target_link_libraries(test_dbconnectionpool PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient GTest::gtest_main base log net http db)
+#add_test(NAME DBConnectionPoolTest COMMAND test_dbconnectionpool)

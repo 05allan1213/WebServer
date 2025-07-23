@@ -10,11 +10,11 @@
 
 TEST(DBConnectionPoolTest, SingleThreadGetRelease)
 {
-    DBConfig config("configs/config.yml");
-    if (!config.isValid())
+    DBConfig::getInstance().load("configs/config.yml");
+    if (!DBConfig::getInstance().isValid())
         return; // 跳过无效配置
     auto *pool = DBConnectionPool::getInstance();
-    pool->init(config);
+    pool->init(DBConfig::getInstance());
     auto *conn = pool->getConnection();
     EXPECT_NE(conn, nullptr);
     pool->releaseConnection(conn);
@@ -22,11 +22,11 @@ TEST(DBConnectionPoolTest, SingleThreadGetRelease)
 
 TEST(DBConnectionPoolTest, MultiThreadGetRelease)
 {
-    DBConfig config("configs/config.yml");
-    if (!config.isValid())
+    DBConfig::getInstance().load("configs/config.yml");
+    if (!DBConfig::getInstance().isValid())
         return;
     auto *pool = DBConnectionPool::getInstance();
-    pool->init(config);
+    pool->init(DBConfig::getInstance());
     std::atomic<int> successCount{0};
     auto worker = [&]()
     {

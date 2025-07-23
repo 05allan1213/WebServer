@@ -1,8 +1,9 @@
 #pragma once
 #include <string>
 #include <yaml-cpp/yaml.h>
+#include "base/BaseConfig.h"
 
-class DBConfig
+class DBConfig : public BaseConfig
 {
 public:
     /**
@@ -56,6 +57,21 @@ public:
      * @return 超时时间
      */
     int getConnectionTimeout() const { return m_connectionTimeout; }
+    /**
+     * @brief 判断当前数据库配置是否合法
+     * @return 合法返回true，否则返回false
+     */
+    bool isValid() const;
+    /**
+     * @brief 加载配置文件
+     * @param filename 配置文件路径
+     */
+    void load(const std::string &filename) override;
+    /**
+     * @brief 获取DBConfig单例实例
+     * @return DBConfig的引用
+     */
+    static DBConfig &getInstance();
 
 private:
     /**
@@ -64,6 +80,8 @@ private:
      * @throws std::invalid_argument 配置无效时抛出
      */
     void loadAndValidate(const std::string &configPath);
+    DBConfig() = default;  // 私有构造
+    void validateConfig(); // 参数校验
 
     std::string m_host;      // 数据库主机地址
     std::string m_user;      // 数据库用户名

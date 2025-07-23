@@ -52,9 +52,9 @@ void WebServer::run()
 {
     try
     {
-        DBConfig dbConfig("configs/config.yml");
+        DBConfig::getInstance().load("configs/config.yml");
         DLOG_INFO << "[WebServer] 数据库配置加载成功";
-        DBConnectionPool::getInstance()->init(dbConfig);
+        DBConnectionPool::getInstance()->init(DBConfig::getInstance());
         DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
         g_server = std::make_unique<WebServer>();
         std::signal(SIGINT, shutdown_handler);
@@ -78,9 +78,9 @@ WebServer::WebServer() : running_(false)
     initConfig();
     try
     {
-        DBConfig dbConfig("configs/config.yml");
+        DBConfig::getInstance().load("configs/config.yml");
         DLOG_INFO << "[WebServer] 数据库配置加载成功";
-        DBConnectionPool::getInstance()->init(dbConfig);
+        DBConnectionPool::getInstance()->init(DBConfig::getInstance());
         DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
     }
     catch (const std::exception &e)
