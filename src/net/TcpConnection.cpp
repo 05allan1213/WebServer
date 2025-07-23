@@ -26,7 +26,8 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
 }
 
 TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int sockfd,
-                             const InetAddress &localAddr, const InetAddress &peerAddr)
+                             const InetAddress &localAddr, const InetAddress &peerAddr,
+                             std::shared_ptr<NetworkConfig> config)
     : loop_(CheckLoopNotNull(loop)),
       name_(nameArg),
       state_(kConnecting),
@@ -35,6 +36,7 @@ TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int so
       channel_(new Channel(loop, sockfd)),
       localAddr_(localAddr),
       peerAddr_(peerAddr),
+      networkConfig_(config),
       highWaterMark_(64 * 1024 * 1024) // 64M
 {
     // 设置 Channel 回调
@@ -154,25 +156,23 @@ void TcpConnection::shutdownInLoop()
 void TcpConnection::connectEstablished()
 {
     setState(kConnected);
-    // 解决 Channel 和 TCPConnection 之间潜在的生命周期问题
     channel_->tie(shared_from_this());
     channel_->enableReading();
 
     connectionCallback_(shared_from_this());
-    // 设置30秒空闲超时定时器
-    auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
-    int idleTimeout = NetworkConfig::getInstance().getIdleTimeout();
+
+    // 从成员变量获取超时时间
+    int idleTimeout = networkConfig_->getIdleTimeout();
     DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 设置空闲超时定时器: " << idleTimeout << " 秒";
+
+    auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
     idleTimerId_ = loop_->runAfter(static_cast<double>(idleTimeout), [weakThis]
                                    {
         auto strongThis = weakThis.lock();
         if (strongThis) {
-            DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 发送提示并关闭连接";
-            strongThis->send("Timeout, closing connection!\n");
-            DLOG_INFO << "Connection timeout, shutting down.";
+            DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 关闭连接";
             strongThis->shutdown();
         } });
-    DLOG_INFO << "当前idleTimeout=" << idleTimeout;
 }
 // 连接断开
 void TcpConnection::connectDestroyed()
@@ -189,27 +189,25 @@ void TcpConnection::connectDestroyed()
 }
 
 void TcpConnection::handleRead(Timestamp receiveTime)
-// 当 Poller 检测到 connfd 变为可读时,Channel会调用此方法
 {
     int saveErrno = 0;
-    // 从 connfd 读取数据,并将数据存入 inputBuffer_。
     ssize_t n = inputBuffer_.readFd(channel_->fd(), &saveErrno);
-    if (n > 0) // 成功读取数据
+    if (n > 0)
     {
         // 收到消息,重置空闲定时器
         loop_->cancel(idleTimerId_);
-        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 收到消息, 取消并重置空闲定时器";
+
+        // 从成员变量获取超时时间
+        int idleTimeout = networkConfig_->getIdleTimeout();
+        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 收到消息, 重置空闲超时定时器: " << idleTimeout << " 秒";
+
         auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
-        int idleTimeout = NetworkConfig::getInstance().getIdleTimeout();
-        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 重置空闲超时定时器: " << idleTimeout << " 秒";
         idleTimerId_ = loop_->runAfter(static_cast<double>(idleTimeout), [weakThis]
                                        {
             auto strongThis = weakThis.lock();
             if (strongThis) {
-                DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 发送提示并关闭连接";
-                strongThis->send("Timeout, closing connection!\n");
-                DLOG_INFO << "Connection timeout, shutting down.";
-                strongThis->shutdown();
+                 DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 关闭连接";
+                 strongThis->shutdown();
             } });
         // 这是网络库使用者最关心的回调之一(通常对应 onMessage)。
         messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);

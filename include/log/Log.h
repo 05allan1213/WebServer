@@ -29,7 +29,13 @@
 void initLogSystem(const std::string &asyncLogBasename, size_t asyncLogRollSize, uint32_t asyncLogFlushInterval, LogFile::RollMode rollMode);
 
 /**
- * @brief 初始化日志系统(自动从配置获取参数)
+ * @brief 初始化一个最小化的默认日志系统 (仅输出到控制台)
+ * @details 用于在配置文件加载前捕获关键错误日志。
+ */
+void initDefaultLogger();
+
+/**
+ * @brief 根据配置初始化日志系统 (会覆盖默认设置)
  */
 void initLogSystem();
 

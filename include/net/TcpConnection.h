@@ -11,28 +11,15 @@
 #include "Timestamp.h"
 #include "base/noncopyable.h"
 #include "net/TimerId.h"
+#include "net/NetworkConfig.h"
 
 class Channel;
 class EventLoop;
 class Socket;
+class NetworkConfig;
 
 /**
  * @brief TCP连接类,代表一个TCP连接
- *
- * TcpConnection封装了一个完整的TCP连接,包括：
- * - 连接的生命周期管理(建立、断开、销毁)
- * - 数据的收发处理(输入输出缓冲区)
- * - 各种事件回调的处理(连接、消息、写完成等)
- * - 连接状态的管理和转换
- *
- * 每个TcpConnection对象都隶属于一个EventLoop(通常是subLoop),
- * 采用智能指针管理生命周期,支持enable_shared_from_this。
- *
- * 设计特点：
- * - 线程安全：所有操作都在EventLoop线程中执行
- * - 缓冲区管理：使用Buffer类管理输入输出数据
- * - 高水位控制：防止发送缓冲区无限增长
- * - 优雅关闭：支持shutdown机制
  */
 class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnection>
 {
@@ -44,9 +31,11 @@ public:
      * @param sockfd 已连接的socket文件描述符
      * @param localAddr 本地地址
      * @param peerAddr 对端地址
+     * @param config 网络配置对象的共享指针
      */
     TcpConnection(EventLoop *loop, const std::string &nameArg, int sockfd,
-                  const InetAddress &localAddr, const InetAddress &peerAddr);
+                  const InetAddress &localAddr, const InetAddress &peerAddr,
+                  std::shared_ptr<NetworkConfig> config);
 
     /**
      * @brief 析构函数
@@ -166,10 +155,10 @@ private:
      */
     enum State // 连接状态枚举
     {
-        kDisconnected, /**< 已断开连接 */
-        kConnecting,   /**< 正在连接中 */
-        kConnected,    /**< 已连接 */
-        kDisconnecting /**< 正在断开连接 */
+        kDisconnected, // 已断开连接
+        kConnecting,   // 正在连接中
+        kConnected,    // 已连接
+        kDisconnecting // 正在断开连接
     };
 
     /**
@@ -248,4 +237,6 @@ private:
     Buffer inputBuffer_;  // 接收缓冲区,存储从socket读取的数据
     Buffer outputBuffer_; // 发送缓冲区,存储待发送到socket的数据
     std::any context_;
+
+    std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置对象的共享指针
 };

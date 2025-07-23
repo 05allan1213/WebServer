@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include "base/BaseConfig.h"
+// 移除 #include "base/BaseConfig.h"
 
 /**
  * @brief 三段式内存缓冲区
@@ -26,20 +26,16 @@ public:
 
     /**
      * @brief 构造函数,创建指定初始大小的缓冲区
-     * @param initialSize 缓冲区初始大小,默认从配置文件读取
+     * @param initialSize 缓冲区初始大小, 0表示使用默认大小
      */
     explicit Buffer(size_t initialSize = 0)
     {
-        if (initialSize == 0)
-        {
-            // 从配置文件读取初始大小
-            const auto &baseConfig = BaseConfig::getInstance();
-            initialSize = baseConfig.getBufferInitialSize();
-        }
+        // 如果传入的大小为0,则使用类内定义的默认初始大小
+        size_t finalInitialSize = (initialSize == 0) ? kInitialSize : initialSize;
 
-        buffer_.resize(kCheapPrepend + initialSize); // 缓冲区总大小 = 预留区 + 初始大小
-        readerIndex_ = kCheapPrepend;                // 读索引指向预留区之后
-        writerIndex_ = kCheapPrepend;                // 写索引初始时与读索引相同
+        buffer_.resize(kCheapPrepend + finalInitialSize); // 缓冲区总大小 = 预留区 + 初始大小
+        readerIndex_ = kCheapPrepend;                     // 读索引指向预留区之后
+        writerIndex_ = kCheapPrepend;                     // 写索引初始时与读索引相同
     }
 
     // 缓冲区状态查询

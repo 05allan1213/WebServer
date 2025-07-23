@@ -1,5 +1,5 @@
 # 设置 CMake 最低版本要求
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 
 # 设置项目名称和语言
 project(webserver LANGUAGES CXX)

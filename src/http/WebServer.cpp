@@ -1,43 +1,32 @@
-#include "WebServer.h"
-#include "StaticFileHandler.h"
+#include "http/WebServer.h"
+#include "base/ConfigManager.h"
 #include "net/NetworkConfig.h"
-#include "log/Log.h"
+#include "db/DBConfig.h"
+#include "base/BaseConfig.h"
+#include "db/DBConnectionPool.h"
+#include "http/StaticFileHandler.h"
 #include "log/LogManager.h"
 #include <csignal>
 #include <memory>
 #include <fstream>
 #include <sstream>
-#include "db/DBConfig.h"
-#include "db/DBConnectionPool.h"
-#include "base/BaseConfig.h"
-#include <unordered_map>
-#include <mutex>
 #include <nlohmann/json.hpp>
 #include <jwt-cpp/jwt.h>
+
 using json = nlohmann::json;
 
 void userLogin(const HttpRequest &req, HttpResponse *resp);
 void userRegister(const HttpRequest &req, HttpResponse *resp);
 
-/**
- * @brief 业务线程池简单占位实现(可扩展为真正的线程池)
- */
 class ThreadPool
 {
 public:
-    /// 启动线程池
     void start() {}
-    /// 停止线程池
     void stop() {}
 };
 
-/// WebServer 全局唯一指针，用于信号优雅关闭
 static std::unique_ptr<WebServer> g_server;
 
-/**
- * @brief 信号处理函数，收到 SIGINT/SIGTERM 时优雅关闭服务器
- * @param signo 信号编号
- */
 void WebServer::shutdown_handler(int signo)
 {
     DLOG_INFO << "[WebServer] 收到信号 " << signo << ", 正在优雅关闭...";
@@ -52,73 +41,83 @@ void WebServer::run()
 {
     try
     {
-        DBConfig::getInstance().load("configs/config.yml");
-        DLOG_INFO << "[WebServer] 数据库配置加载成功";
-        DBConnectionPool::getInstance()->init(DBConfig::getInstance());
-        DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
-        g_server = std::make_unique<WebServer>();
+        // 1. 启动最小化的引导日志
+        initDefaultLogger();
+
+        // 2. 初始化配置管理器
+        auto &configMgr = ConfigManager::getInstance();
+        configMgr.load("configs/config.yml", 5);
+
+        // 3. 关键检查：确认核心配置是否加载成功，实现“快速失败”
+        if (!configMgr.getNetworkConfig() || !configMgr.getLogConfig() ||
+            !configMgr.getDBConfig() || !configMgr.getBaseConfig())
+        {
+
+            DLOG_FATAL << "[WebServer] 核心配置加载失败，服务器无法启动。请检查配置文件路径和内容。";
+            std::cerr << "[WebServer] 核心配置加载失败，服务器无法启动。请检查配置文件路径和内容。" << std::endl;
+            exit(1);
+        }
+
+        // 4. 根据加载的配置，重新初始化功能完备的日志系统
+        initLogSystem();
+
+        // 5. 创建并运行WebServer
+        g_server = std::make_unique<WebServer>(configMgr);
         std::signal(SIGINT, shutdown_handler);
         std::signal(SIGTERM, shutdown_handler);
+
+        DLOG_INFO << "[WebServer] 准备启动服务...";
         g_server->start();
     }
     catch (const std::exception &e)
     {
-        DLOG_FATAL << "[WebServer] 数据库配置无效: " << e.what();
-        throw;
+        DLOG_FATAL << "[WebServer] 启动时发生未捕获异常: " << e.what();
+        std::cerr << "[WebServer] 启动时发生未捕获异常: " << e.what() << std::endl;
+        exit(1);
     }
 }
 
 /**
- * @brief 构造函数，完成日志、配置、主循环、HTTP服务器、线程池等初始化
+ * @brief 构造函数，完成所有模块的初始化
+ * @param configManager 配置管理器的引用
  */
-WebServer::WebServer() : running_(false)
+WebServer::WebServer(ConfigManager &configManager)
+    : running_(false),
+      configManager_(configManager)
 {
     logManager_ = LogManager::getInstance();
-    initLog();
-    initConfig();
-    try
+
+    networkConfig_ = configManager_.getNetworkConfig();
+    if (!networkConfig_)
     {
-        DBConfig::getInstance().load("configs/config.yml");
-        DLOG_INFO << "[WebServer] 数据库配置加载成功";
-        DBConnectionPool::getInstance()->init(DBConfig::getInstance());
-        DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+        throw std::runtime_error("初始化失败: NetworkConfig 为空。请检查配置文件是否存在或格式是否正确。");
     }
-    catch (const std::exception &e)
+
+    auto dbConfig = configManager_.getDBConfig();
+    if (!dbConfig || !dbConfig->isValid())
     {
-        DLOG_FATAL << "[WebServer] 数据库配置无效: " << e.what();
-        throw;
+        throw std::runtime_error("数据库配置无效或缺失");
     }
-    mainLoop_ = std::make_unique<EventLoop>(NetworkConfig::getInstance().getEpollMode());
-    const auto &netConfig = NetworkConfig::getInstance();
-    InetAddress addr(netConfig.getPort(), netConfig.getIp());
-    server_ = std::make_unique<HttpServer>(mainLoop_.get(), addr, "WebServer-01", netConfig.getThreadNum());
+    DBConnectionPool::getInstance()->init(*dbConfig);
+    DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+
+    mainLoop_ = std::make_unique<EventLoop>(networkConfig_->getEpollMode());
+    InetAddress addr(networkConfig_->getPort(), networkConfig_->getIp());
+
+    server_ = std::make_unique<HttpServer>(mainLoop_.get(), addr, "WebServer-01", networkConfig_);
+
     businessPool_ = std::make_unique<ThreadPool>();
     initCallbacks();
 }
 
-/**
- * @brief 析构函数，自动优雅关闭服务器
- */
 WebServer::~WebServer()
 {
     stop();
 }
 
-/**
- * @brief 初始化日志系统(可扩展为异步/多级日志等)
- */
 void WebServer::initLog()
 {
-    DLOG_INFO << "[WebServer] 日志系统初始化";
-}
-
-/**
- * @brief 加载服务器配置(如IP、端口、线程数等)
- */
-void WebServer::initConfig()
-{
-    NetworkConfig::getInstance().load("configs/config.yml");
-    DLOG_INFO << "[WebServer] 配置加载完成";
+    DLOG_INFO << "[WebServer] 日志系统由全局 initLogSystem() 函数初始化";
 }
 
 /**
@@ -156,21 +155,23 @@ void WebServer::setNotFoundHandler(const HttpServer::HttpCallback &cb)
  */
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
+    DLOG_INFO << "[WebServer] 收到HTTP请求: " << req.getPath();
     // 统一认证入口：对/api/前缀且不是/api/login和/api/register的接口做JWT校验
     if (req.getPath().rfind("/api/", 0) == 0 &&
         req.getPath() != "/api/login" && req.getPath() != "/api/register")
     {
-        // 需要认证
+        DLOG_INFO << "[WebServer] 需要认证接口: " << req.getPath();
         int user_id = -1;
         if (!checkAuth(req, user_id))
         {
+            DLOG_WARN << "[WebServer] 认证失败: " << req.getPath();
             resp->setStatusCode(HttpResponse::k403Forbidden);
             resp->setStatusMessage("Unauthorized");
             resp->setContentType("application/json");
             resp->setBody(R"({"error":"Unauthorized, please login first."})");
             return;
         }
-        // 认证通过，写入user_id
+        DLOG_INFO << "[WebServer] 认证通过, user_id=" << user_id;
         const_cast<HttpRequest &>(req).setUserId(user_id);
     }
     // 路由分发：优先查找路由表
@@ -179,6 +180,7 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
         auto it = router_.find(req.getPath());
         if (it != router_.end())
         {
+            DLOG_INFO << "[WebServer] 命中业务路由: " << req.getPath();
             it->second(req, resp);
             return;
         }
@@ -192,10 +194,12 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
     // 静态文件也没找到，才走 notFoundHandler
     if (notFoundHandler_)
     {
+        DLOG_WARN << "[WebServer] 未命中任何路由, 进入notFoundHandler: " << req.getPath();
         notFoundHandler_(req, resp);
     }
     else
     {
+        DLOG_WARN << "[WebServer] 未命中任何路由, 返回404: " << req.getPath();
         std::ifstream ifs("web_static/404.html");
         std::stringstream buffer;
         if (ifs)
@@ -274,20 +278,27 @@ static bool execSQL(MYSQL *mysql, const std::string &sql)
     return true;
 }
 
-// JWT认证检查函数
+/// JWT认证检查函数
 bool checkAuth(const HttpRequest &req, int &user_id)
 {
     auto authOpt = req.getHeader("Authorization");
     if (!authOpt.has_value())
         return false;
+
     const std::string &auth = authOpt.value();
     if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ")
     {
         std::string token = auth.substr(7);
         try
         {
+            // 从 ConfigManager 获取最新的 JWT Secret
+            auto baseConfig = ConfigManager::getInstance().getBaseConfig();
+            if (!baseConfig)
+                return false;
+
             auto decoded = jwt::decode(token);
-            auto verifier = jwt::verify().allow_algorithm(jwt::algorithm::hs256{"your_secret"});
+            // 使用 () 构造函数，而不是 {}
+            auto verifier = jwt::verify().allow_algorithm(jwt::algorithm::hs256(baseConfig->getJwtSecret()));
             verifier.verify(decoded);
             user_id = std::stoi(decoded.get_payload_claim("user_id").as_string());
             return true;
@@ -302,8 +313,10 @@ bool checkAuth(const HttpRequest &req, int &user_id)
 
 void userRegister(const HttpRequest &req, HttpResponse *resp)
 {
+    DLOG_INFO << "[WebServer] 用户注册请求: " << req.getBody();
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
+        DLOG_WARN << "[WebServer] 非POST方法注册请求";
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
@@ -319,28 +332,29 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
     }
     catch (json::exception &e)
     {
+        DLOG_WARN << "[WebServer] 注册JSON解析失败: " << e.what();
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
         resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
-        DLOG_WARN << "JSON parse error: " << e.what();
         return;
     }
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
+        DLOG_ERROR << "[WebServer] 注册时数据库连接获取失败";
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
         resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
-        DLOG_ERROR << "Failed to get DB connection for registration.";
         return;
     }
     char sql[256] = {0};
     snprintf(sql, sizeof(sql), "INSERT INTO user(username, password) VALUES('%s', '%s')", username.c_str(), password.c_str());
     if (!execSQL(conn->m_conn, sql))
     {
+        DLOG_WARN << "[WebServer] 注册失败, 用户名已存在: " << username;
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Conflict");
         resp->setContentType("application/json");
@@ -348,6 +362,7 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
     }
     else
     {
+        DLOG_INFO << "[WebServer] 用户注册成功: " << username;
         resp->setStatusCode(HttpResponse::k200Ok);
         resp->setStatusMessage("Created");
         resp->setContentType("application/json");
@@ -357,8 +372,10 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
 
 void userLogin(const HttpRequest &req, HttpResponse *resp)
 {
+    DLOG_INFO << "[WebServer] 用户登录请求: " << req.getBody();
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
+        DLOG_WARN << "[WebServer] 非POST方法登录请求";
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
@@ -374,22 +391,22 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
     }
     catch (json::exception &e)
     {
+        DLOG_WARN << "[WebServer] 登录JSON解析失败: " << e.what();
         resp->setStatusCode(HttpResponse::k400BadRequest);
         resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
         resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
-        DLOG_WARN << "JSON parse error: " << e.what();
         return;
     }
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
+        DLOG_ERROR << "[WebServer] 登录时数据库连接获取失败";
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
         resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
-        DLOG_ERROR << "Failed to get DB connection for login.";
         return;
     }
     char sql[256] = {0};
@@ -402,6 +419,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
             MYSQL_ROW row = mysql_fetch_row(res);
             if (!row)
             {
+                DLOG_WARN << "[WebServer] 登录失败, 用户未注册: " << username;
                 resp->setStatusCode(HttpResponse::k400BadRequest);
                 resp->setStatusMessage("Unauthorized");
                 resp->setContentType("application/json");
@@ -410,17 +428,27 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
             else if (password == row[1])
             {
                 int user_id = atoi(row[0]);
-                auto &config = BaseConfig::getInstance();
-                std::string secret = config.getJwtSecret();
-                int expire = config.getJwtExpireSeconds();
-                std::string issuer = config.getJwtIssuer();
+                auto baseConfig = ConfigManager::getInstance().getBaseConfig();
+                if (!baseConfig)
+                {
+                    DLOG_ERROR << "[WebServer] 登录时获取JWT配置失败";
+                    resp->setStatusCode(HttpResponse::k500InternalServerError);
+                    resp->setStatusMessage("Internal Error");
+                    resp->setContentType("application/json");
+                    resp->setBody(R"({"error":"Server internal error: config error."})");
+                    return;
+                }
+                std::string secret = baseConfig->getJwtSecret();
+                int expire = baseConfig->getJwtExpireSeconds();
+                std::string issuer = baseConfig->getJwtIssuer();
                 auto token = jwt::create()
                                  .set_issuer(issuer)
                                  .set_type("JWS")
                                  .set_payload_claim("user_id", jwt::claim(std::to_string(user_id)))
                                  .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds(expire))
-                                 .sign(jwt::algorithm::hs256{secret});
+                                 .sign(jwt::algorithm::hs256(secret));
                 json resp_json = {{"token", token}};
+                DLOG_INFO << "[WebServer] 用户登录成功: " << username << ", user_id=" << user_id;
                 resp->setStatusCode(HttpResponse::k200Ok);
                 resp->setStatusMessage("OK");
                 resp->setContentType("application/json");
@@ -428,6 +456,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
             }
             else
             {
+                DLOG_WARN << "[WebServer] 登录失败, 密码错误: " << username;
                 resp->setStatusCode(HttpResponse::k400BadRequest);
                 resp->setStatusMessage("Unauthorized");
                 resp->setContentType("application/json");
@@ -437,6 +466,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         }
         else
         {
+            DLOG_WARN << "[WebServer] 登录失败, 用户未注册: " << username;
             resp->setStatusCode(HttpResponse::k400BadRequest);
             resp->setStatusMessage("Unauthorized");
             resp->setContentType("application/json");
@@ -445,6 +475,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
     }
     else
     {
+        DLOG_ERROR << "[WebServer] 登录时数据库查询失败: " << username;
         resp->setStatusCode(HttpResponse::k500InternalServerError);
         resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");

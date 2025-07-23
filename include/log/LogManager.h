@@ -76,10 +76,21 @@ public:
     bool isInitialized() const { return m_initialized; }
 
     /**
+     * @brief 设置初始化状态 (主要用于引导日志)
+     * @param initialized 新的初始化状态
+     */
+    void setInitialized(bool initialized) { m_initialized = initialized; }
+
+    /**
      * @brief 设置日志滚动模式
      * @param mode 滚动模式
      */
     void setRollMode(LogFile::RollMode mode);
+
+    /**
+     * @brief 当配置更新时，重新应用日志相关的配置
+     */
+    void onConfigUpdate();
 
 private:
     /**
@@ -106,4 +117,6 @@ private:
     int m_flushInterval = 0;
     // 单例实例,用于实现单例模式
     static std::shared_ptr<LogManager> s_instance;
+    // 是否是引导日志
+    bool m_isBootLogger = false;
 };

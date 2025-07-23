@@ -1,44 +1,70 @@
 #include "Log.h"
 #include "log/LogConfig.h"
+#include "base/ConfigManager.h"
 
 /**
- * @brief 初始化日志系统
- * 如果日志系统已经初始化,将重新配置它
- * @param asyncLogBasename 异步日志文件基础名,为空则不使用异步日志
- * @param asyncLogRollSize 异步日志单文件最大大小,默认10MB
- * @param asyncLogFlushInterval 异步日志刷新间隔(秒),默认1秒
- * @param rollMode 日志滚动模式,默认按大小滚动
+ * @brief 初始化一个最小化的默认日志系统 (仅输出到控制台)
+ * @details 用于在配置文件加载前捕获关键错误日志。
+ * 只设置 root logger，级别为 DEBUG，输出到控制台。
  */
-void initLogSystem(const std::string &asyncLogBasename,
-                   off_t asyncLogRollSize,
-                   int asyncLogFlushInterval,
-                   LogFile::RollMode rollMode)
+void initDefaultLogger()
 {
-    LogManager::getInstance()->init(asyncLogBasename, asyncLogRollSize, asyncLogFlushInterval, rollMode);
+    auto logManager = LogManager::getInstance();
+    // 只有在日志系统完全未初始化时才进行设置
+    if (logManager->isInitialized())
+    {
+        return;
+    }
+
+    auto rootLogger = logManager->getRoot();
+
+    rootLogger->clearAppenders();
+
+    LogAppenderPtr consoleAppender(new StdoutLogAppender());
+    consoleAppender->setFormatter(
+        std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
+    consoleAppender->setLevel(Level::DEBUG);
+    rootLogger->addAppender(consoleAppender);
+
+    rootLogger->setLevel(Level::DEBUG);
+
+    // 这是一个技巧：我们暂时将系统标记为已初始化，以便 DLOG_* 宏可以工作。
+    // 稍后 initLogSystem() 会根据配置文件再次设置它。
+    logManager->setInitialized(true);
 }
 
 /**
- * @brief 初始化日志系统
- * 如果日志系统已经初始化,将重新配置它
- * 自动从LogConfig获取参数并调用有参版本
+ * @brief 根据配置初始化日志系统
+ * @details 从 ConfigManager 获取配置并初始化 LogManager。
+ * 此函数应在 ConfigManager::load() 之后调用。
  */
 void initLogSystem()
 {
-    LogConfig::getInstance().load("configs/config.yml");
-    const auto &logConfig = LogConfig::getInstance();
-    bool enableFile = logConfig.getEnableFile();
-    std::string fileLevelStr = logConfig.getFileLevel();
-    std::string consoleLevelStr = logConfig.getConsoleLevel();
-    // 解析字符串为Level枚举,并设置到Logger/LogAppender
-    std::string rollModeStr = logConfig.getRollMode();
+    auto logConfig = ConfigManager::getInstance().getLogConfig();
+    if (!logConfig)
+    {
+        DLOG_ERROR << "[Log] LogConfig 未加载, 日志系统将继续使用默认的控制台输出";
+        return;
+    }
+
+    std::string rollModeStr = logConfig->getRollMode();
     LogFile::RollMode rollMode = LogFile::RollMode::SIZE_HOURLY;
     if (rollModeStr == "SIZE")
         rollMode = LogFile::RollMode::SIZE;
+    else if (rollModeStr == "DAILY")
+        rollMode = LogFile::RollMode::DAILY;
     else if (rollModeStr == "HOURLY")
         rollMode = LogFile::RollMode::HOURLY;
+    else if (rollModeStr == "MINUTELY")
+        rollMode = LogFile::RollMode::MINUTELY;
+    else if (rollModeStr == "SIZE_DAILY")
+        rollMode = LogFile::RollMode::SIZE_DAILY;
     else if (rollModeStr == "SIZE_HOURLY")
         rollMode = LogFile::RollMode::SIZE_HOURLY;
-    initLogSystem(logConfig.getBasename(), logConfig.getRollSize(), logConfig.getFlushInterval(), rollMode);
+    else if (rollModeStr == "SIZE_MINUTELY")
+        rollMode = LogFile::RollMode::SIZE_MINUTELY;
+
+    LogManager::getInstance()->init(logConfig->getBasename(), logConfig->getRollSize(), logConfig->getFlushInterval(), rollMode);
 }
 
 /**

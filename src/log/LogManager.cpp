@@ -3,6 +3,7 @@
 #include "LogEvent.h"
 #include "LogEventWrap.h"
 #include "log/LogConfig.h"
+#include "base/ConfigManager.h"
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -151,6 +152,9 @@ LogManager::~LogManager()
     // 停止监控线程
     stopMonitor();
 
+    // 注销回调
+    ConfigManager::getInstance().unregisterUpdateCallback("LogManager");
+
     // 停止异步日志
     if (g_asyncLog)
     {
@@ -225,6 +229,7 @@ Logger::ptr LogManager::getLogger(const std::string &name)
  * @param asyncLogBasename 异步日志文件基础名。如果为空,则只使用控制台输出。
  * @param asyncLogRollSize 日志文件滚动大小(字节)。
  * @param asyncLogFlushInterval 日志刷新间隔(秒)。
+ * @param rollMode 日志滚动模式
  */
 void LogManager::init(const std::string &asyncLogBasename,
                       off_t asyncLogRollSize,
@@ -251,18 +256,29 @@ void LogManager::init(const std::string &asyncLogBasename,
     }
 
     // --- 2. 清空所有日志器的Appender ---
-    // 这至关重要,确保所有Logger(包括root和其它自定义Logger)的配置都被重置
     for (auto &pair : m_loggers)
     {
         pair.second->clearAppenders();
     }
 
-    // 读取配置
-    const auto &logConfig = LogConfig::getInstance();
-    bool enableFile = logConfig.getEnableFile();
-    bool enableAsync = logConfig.getEnableAsync(); // 新增: 是否启用异步
-    std::string fileLevelStr = logConfig.getFileLevel();
-    std::string consoleLevelStr = logConfig.getConsoleLevel();
+    // 从ConfigManager获取最新的LogConfig
+    auto logConfig = ConfigManager::getInstance().getLogConfig();
+    if (!logConfig)
+    {
+        LOG_ERROR(m_root) << "[LogManager] init 失败: 无法获取 LogConfig";
+        // 至少保证有控制台输出
+        LogAppenderPtr consoleAppender(new StdoutLogAppender());
+        consoleAppender->setFormatter(std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
+        m_root->addAppender(consoleAppender);
+        m_root->setLevel(Level::DEBUG);
+        m_initialized = true;
+        return;
+    }
+
+    bool enableFile = logConfig->getEnableFile();
+    bool enableAsync = logConfig->getEnableAsync();
+    std::string fileLevelStr = logConfig->getFileLevel();
+    std::string consoleLevelStr = logConfig->getConsoleLevel();
 
     // 字符串转Level
     auto parseLevel = [](const std::string &str)
@@ -356,6 +372,10 @@ void LogManager::init(const std::string &asyncLogBasename,
     // --- 6. 标记为已初始化并启动监控 ---
     m_initialized = true;
     startMonitor(60);
+
+    // --- 7. 注册配置更新回调 ---
+    ConfigManager::getInstance().registerUpdateCallback("LogManager", [this]()
+                                                        { this->onConfigUpdate(); });
 }
 
 /**
@@ -397,10 +417,16 @@ bool LogManager::reinitializeAsyncLogging()
         std::make_shared<LogFormatter>("%d{%Y-%m-%d %H:%M:%S} [%p] %c - %m%n"));
     m_root->addAppender(consoleAppender);
 
-    // 根据当前配置决定同步/异步
-    const auto &logConfig = LogConfig::getInstance();
-    bool enableFile = logConfig.getEnableFile();
-    bool enableAsync = logConfig.getEnableAsync();
+    // 从ConfigManager获取最新的LogConfig
+    auto logConfig = ConfigManager::getInstance().getLogConfig();
+    if (!logConfig)
+    {
+        LOG_ERROR(m_root) << "[LogManager] reinitialize 失败: 无法获取 LogConfig";
+        return false;
+    }
+
+    bool enableFile = logConfig->getEnableFile();
+    bool enableAsync = logConfig->getEnableAsync();
 
     if (!enableFile)
     {
@@ -481,4 +507,61 @@ void LogManager::setRollMode(LogFile::RollMode mode)
             this->reinitializeAsyncLogging(); })
             .detach();
     }
+}
+
+void LogManager::onConfigUpdate()
+{
+    LOG_INFO(m_root) << "[LogManager] 检测到配置更新，准备重新应用日志配置...";
+
+    // 从ConfigManager获取最新的LogConfig
+    auto logConfig = ConfigManager::getInstance().getLogConfig();
+    if (!logConfig)
+    {
+        LOG_ERROR(m_root) << "[LogManager] 获取最新日志配置失败，取消更新";
+        return;
+    }
+
+    // 解析新的日志级别
+    auto parseLevel = [](const std::string &str)
+    {
+        if (str == "DEBUG")
+            return Level::DEBUG;
+        if (str == "INFO")
+            return Level::INFO;
+        if (str == "WARN")
+            return Level::WARN;
+        if (str == "ERROR")
+            return Level::ERROR;
+        if (str == "FATAL")
+            return Level::FATAL;
+        return Level::DEBUG;
+    };
+
+    Level newFileLevel = parseLevel(logConfig->getFileLevel());
+    Level newConsoleLevel = parseLevel(logConfig->getConsoleLevel());
+
+    LOG_INFO(m_root) << "[LogManager] 新的文件日志级别: " << logConfig->getFileLevel();
+    LOG_INFO(m_root) << "[LogManager] 新的控制台日志级别: " << logConfig->getConsoleLevel();
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // 更新所有Appender的级别
+    if (m_root)
+    {
+        for (const auto &appender : m_root->getAppenders())
+        {
+            // 假设 FileLogAppender 和 StdoutLogAppender 可以通过某种方式识别
+            // 这里简单处理：假定文件appender的文件名不为空
+            auto fileAppender = std::dynamic_pointer_cast<FileLogAppender>(appender);
+            if (fileAppender)
+            {
+                fileAppender->setLevel(newFileLevel);
+            }
+            else
+            {
+                appender->setLevel(newConsoleLevel);
+            }
+        }
+    }
+    LOG_INFO(m_root) << "[LogManager] 日志级别配置热重载完成";
 }

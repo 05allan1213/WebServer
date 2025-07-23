@@ -15,22 +15,10 @@
 #include "TcpConnection.h"
 #include "base/noncopyable.h"
 #include "log/Log.h"
+#include "net/NetworkConfig.h"
 
 /**
  * @brief TCP服务器类,提供TCP连接的管理和服务
- *
- * TcpServer是网络库的服务器端核心组件,负责：
- * - 监听指定端口的连接请求
- * - 管理所有已建立的TCP连接
- * - 分发连接事件到用户回调函数
- * - 支持多线程处理(主从Reactor模式)
- *
- * 设计特点：
- * - 采用主从Reactor模式：主Reactor负责接受新连接,从Reactor负责处理已连接socket的IO
- * - 支持线程池：可以创建多个IO线程处理连接
- * - 连接生命周期管理：自动管理连接的建立、断开和销毁
- * - 回调机制：提供丰富的回调接口供用户自定义处理逻辑
- * - 端口复用：支持SO_REUSEPORT选项
  */
 class TcpServer : noncopyable
 {
@@ -45,19 +33,20 @@ public:
      */
     enum Option // 用于控制是否启用 SO_REUSEPORT 端口复用选项
     {
-        kNoReusePort, /**< 不启用端口复用 */
-        kReusePort,   /**< 启用端口复用 */
+        kNoReusePort, // 不启用端口复用
+        kReusePort,   // 启用端口复用
     };
 
     /**
      * @brief 构造函数
-     * @param loop 主EventLoop指针,负责接受新连接
+     * @param loop 主EventLoop指针
      * @param listenAddr 监听地址
      * @param nameArg 服务器名称
-     * @param option 端口复用选项,默认为kNoReusePort
+     * @param config 网络配置对象的共享指针
+     * @param option 端口复用选项
      */
     TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::string &nameArg,
-              Option option = kNoReusePort);
+              std::shared_ptr<NetworkConfig> config, Option option = kNoReusePort);
 
     /**
      * @brief 析构函数
@@ -143,8 +132,9 @@ private:
 
     std::unique_ptr<Acceptor> acceptor_; // 连接接受器,负责监听和接受新连接
 
-    std::shared_ptr<EventLoopThreadPool>
-        threadPool_; // IO线程池,处理已建立连接上的IO事件
+    std::shared_ptr<EventLoopThreadPool> threadPool_; // IO线程池,处理已建立连接上的IO事件
+
+    std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置对象的共享指针
 
     /** @brief 用户设置的回调函数 */
     ConnectionCallback connectionCallback_;       // 连接建立/断开回调函数

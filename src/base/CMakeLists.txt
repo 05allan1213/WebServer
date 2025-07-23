@@ -6,6 +6,7 @@ add_library(base
     Buffer.cpp
     BaseConfig.cpp
     Timestamp.cpp
+    ConfigManager.cpp
     # 其他base源文件
 )
 

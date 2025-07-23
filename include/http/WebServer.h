@@ -1,5 +1,5 @@
 #pragma once
-#include "HttpServer.h"
+#include "http/HttpServer.h"
 #include "net/EventLoop.h"
 #include <memory>
 #include <atomic>
@@ -11,26 +11,27 @@
 #include <unordered_map>
 #include <mutex>
 
-class ThreadPool; // 业务线程池前置声明
+class ThreadPool;
+class ConfigManager; // <-- 保持前向声明
+class NetworkConfig;
 
 /**
  * @brief WebServer 主服务器类
- *
- * 负责初始化日志系统、加载配置、创建主事件循环、HTTP服务器、业务线程池，
- * 并统一管理服务器的启动、停止、优雅关闭、HTTP请求分发等核心流程。
- * 支持静态资源与动态接口的路由分发。
  */
 class WebServer
 {
 public:
     /**
-     * @brief 构造函数，完成日志、配置、主循环、HTTP服务器、线程池等初始化
+     * @brief 构造函数，完成所有模块的初始化
+     * @param configManager 配置管理器的引用
      */
-    WebServer();
+    explicit WebServer(ConfigManager &configManager);
+
     /**
      * @brief 析构函数，自动优雅关闭服务器
      */
     ~WebServer();
+
     /**
      * @brief 启动服务器(包括日志、线程池、网络服务、主事件循环)
      */
@@ -65,10 +66,6 @@ private:
      */
     void initLog();
     /**
-     * @brief 加载服务器配置(如IP、端口、线程数等)
-     */
-    void initConfig();
-    /**
      * @brief 初始化 HTTP 回调，将请求分发到 onHttpRequest
      */
     void initCallbacks();
@@ -90,6 +87,9 @@ private:
      * @param resp HTTP响应对象
      */
     void handleDynamic(const HttpRequest &req, HttpResponse *resp);
+
+    ConfigManager &configManager_;                 // 保存配置管理器的引用
+    std::shared_ptr<NetworkConfig> networkConfig_; // 保存网络配置
 
     std::unique_ptr<EventLoop> mainLoop_;                              // 主事件循环对象，负责 IO 事件分发
     std::unique_ptr<HttpServer> server_;                               // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
