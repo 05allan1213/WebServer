@@ -89,6 +89,13 @@ public:
     void send(const std::string &buf);
 
     /**
+     * @brief 使用零拷贝（sendfile）发送文件
+     * @param filePath 要发送的文件的完整路径
+     * @param closeAfterSend 发送完成后是否关闭连接
+     */
+    void sendFile(const std::string &filePath, bool closeAfterSend);
+
+    /**
      * @brief 关闭连接
      *
      * 关闭写端,停止发送数据,但保持读端开放
@@ -204,6 +211,13 @@ private:
      * 这是send方法的实际实现,在EventLoop线程中执行
      */
     void sendInLoop(const void *data, size_t len);
+
+    /**
+     * @brief 在所属的EventLoop中执行零拷贝发送操作
+     * @param filePath 文件的完整路径
+     * @param closeAfterSend 发送完成后是否关闭连接
+     */
+    void sendFileInLoop(const std::string &filePath, bool closeAfterSend);
 
     /**
      * @brief 在所属的EventLoop中执行关闭操作

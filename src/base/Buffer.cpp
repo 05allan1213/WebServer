@@ -1,52 +1,198 @@
-#include "Buffer.h"
-
+#include "base/Buffer.h"
+#include "base/MemoryPool.h"
+#include "log/Log.h"
 #include <errno.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <cstring>
+
+std::atomic<size_t> Buffer::activeBuffers{0};
+std::atomic<size_t> Buffer::poolMemory{0};
+std::atomic<size_t> Buffer::heapMemory{0};
+std::atomic<size_t> Buffer::resizeCount{0};
+
+Buffer::Buffer(size_t initialSize)
+    : readerIndex_(kCheapPrepend), writerIndex_(kCheapPrepend), fromPool_(true)
+{
+    capacity_ = initialSize + kCheapPrepend;
+    data_ = static_cast<char *>(MemoryPool::getInstance().allocate(capacity_));
+    if (!data_)
+    {
+        throw std::bad_alloc();
+    }
+
+    activeBuffers++;
+    poolMemory += capacity_;
+}
+
+Buffer::~Buffer()
+{
+    if (data_)
+    {
+        if (fromPool_)
+        {
+            MemoryPool::getInstance().deallocate(data_, capacity_);
+            poolMemory -= capacity_;
+        }
+        else
+        {
+            delete[] data_;
+            heapMemory -= capacity_;
+        }
+    }
+    activeBuffers--;
+}
+
+Buffer::Buffer(Buffer &&rhs) noexcept
+    : data_(rhs.data_),
+      capacity_(rhs.capacity_),
+      readerIndex_(rhs.readerIndex_),
+      writerIndex_(rhs.writerIndex_),
+      fromPool_(rhs.fromPool_)
+{
+    rhs.data_ = nullptr;
+    rhs.capacity_ = 0;
+}
+
+Buffer &Buffer::operator=(Buffer &&rhs) noexcept
+{
+    swap(rhs);
+    return *this;
+}
+
+void Buffer::swap(Buffer &rhs) noexcept
+{
+    std::swap(data_, rhs.data_);
+    std::swap(capacity_, rhs.capacity_);
+    std::swap(readerIndex_, rhs.readerIndex_);
+    std::swap(writerIndex_, rhs.writerIndex_);
+    std::swap(fromPool_, rhs.fromPool_);
+}
+
+void Buffer::retrieve(size_t len)
+{
+    if (len > readableBytes())
+    {
+        throw std::out_of_range("Buffer::retrieve error: len > readableBytes()");
+    }
+    if (len < readableBytes())
+    {
+        readerIndex_ += len;
+    }
+    else
+    {
+        retrieveAll();
+    }
+}
+
+void Buffer::retrieveAll()
+{
+    readerIndex_ = kCheapPrepend;
+    writerIndex_ = kCheapPrepend;
+}
+
+std::string Buffer::retrieveAllAsString()
+{
+    return retrieveAsString(readableBytes());
+}
+
+std::string Buffer::retrieveAsString(size_t len)
+{
+    if (len > readableBytes())
+    {
+        len = readableBytes();
+    }
+    std::string result(peek(), len);
+    retrieve(len);
+    return result;
+}
+
+void Buffer::append(const char *data, size_t len)
+{
+    ensureWritableBytes(len);
+    std::copy(data, data + len, beginWrite());
+    writerIndex_ += len;
+}
+
+void Buffer::ensureWritableBytes(size_t len)
+{
+    if (writableBytes() >= len)
+    {
+        return;
+    }
+
+    if (prependableBytes() + writableBytes() >= len + kCheapPrepend)
+    {
+        // 整理内部空间
+        size_t readable = readableBytes();
+        std::move(begin() + readerIndex_, begin() + writerIndex_, begin() + kCheapPrepend);
+        readerIndex_ = kCheapPrepend;
+        writerIndex_ = readerIndex_ + readable;
+    }
+    else
+    {
+        // 扩容
+        resizeCount++;
+        size_t newCapacity = writerIndex_ + len;
+        char *newData = new char[newCapacity];
+        heapMemory += newCapacity;
+
+        std::copy(peek(), peek() + readableBytes(), newData + kCheapPrepend);
+
+        // 释放旧内存
+        if (fromPool_)
+        {
+            MemoryPool::getInstance().deallocate(data_, capacity_);
+            poolMemory -= capacity_;
+        }
+        else
+        {
+            delete[] data_;
+            heapMemory -= capacity_;
+        }
+
+        data_ = newData;
+        capacity_ = newCapacity;
+        readerIndex_ = kCheapPrepend;
+        writerIndex_ = readerIndex_ + readableBytes();
+        fromPool_ = false; // 内存现在来自堆
+    }
+}
 
 ssize_t Buffer::readFd(int fd, int *saveErrno)
 {
-    // 在栈上定义额外的缓冲区,大小为64KB
     char extrabuf[65536] = {0};
-    // 设置iovec结构体数组,第一个元素指向缓冲区中可读数据的起始位置,第二个元素指向额外的栈上缓冲区
     struct iovec vec[2];
-
     const size_t writable = writableBytes();
-    vec[0].iov_base = begin() + writerIndex_; // 指向主 Buffer 的可写起始位置
-    vec[0].iov_len = writable;                // 主 Buffer 当前可写的长度
+    vec[0].iov_base = beginWrite();
+    vec[0].iov_len = writable;
+    vec[1].iov_base = extrabuf;
+    vec[1].iov_len = sizeof extrabuf;
 
-    vec[1].iov_base = extrabuf;       // 指向栈上缓冲区
-    vec[1].iov_len = sizeof extrabuf; // 栈上缓冲区的长度
-
-    // 如果主缓冲区的可写空间小于栈缓冲区大小 (64KB),则同时使用主缓冲区和栈缓冲区 (iovcnt =
-    // 2),期望一次 readv 最多能读入 writable + 64KB 数据。 如果主缓冲区可写空间已经很大
-    // (>=64KB),则只使用主缓冲区 (iovcnt = 1),避免不必要的栈缓冲区参与
     const int iovcnt = (writable < sizeof extrabuf) ? 2 : 1;
     const ssize_t n = ::readv(fd, vec, iovcnt);
-    if (n < 0) // 错误
+    if (n < 0)
     {
-        *saveErrno = errno; // 读取失败,设置 errno
+        *saveErrno = errno;
     }
-    else if (n <= writable) // 数据完全读入主缓冲区
+    else if (static_cast<size_t>(n) <= writable)
     {
-        writerIndex_ += n; // 更新可写索引
+        writerIndex_ += n;
     }
-    else // 数据填满主缓冲区并溢出到栈缓冲区
+    else
     {
-        writerIndex_ = buffer_.size();  // 将写索引移到末尾
-        append(extrabuf, n - writable); // 将栈缓冲区数据追加到主缓冲区
+        writerIndex_ = capacity_;
+        append(extrabuf, n - writable);
     }
-
     return n;
 }
 
 ssize_t Buffer::writeFd(int fd, int *saveErrno)
 {
-    // 从可写索引(开始与可读索引相同)写入数据到fd中
     ssize_t n = ::write(fd, peek(), readableBytes());
     if (n < 0)
     {
-        *saveErrno = errno; // 写入失败,设置 errno
+        *saveErrno = errno;
     }
     return n;
 }

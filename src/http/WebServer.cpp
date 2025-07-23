@@ -1,5 +1,7 @@
 #include "http/WebServer.h"
 #include "base/ConfigManager.h"
+#include "base/MemoryPool.h"
+#include "base/Buffer.h"
 #include "net/NetworkConfig.h"
 #include "db/DBConfig.h"
 #include "base/BaseConfig.h"
@@ -48,7 +50,7 @@ void WebServer::run()
         auto &configMgr = ConfigManager::getInstance();
         configMgr.load("configs/config.yml", 5);
 
-        // 3. 关键检查：确认核心配置是否加载成功，实现“快速失败”
+        // 3. 关键检查：确认核心配置是否加载成功
         if (!configMgr.getNetworkConfig() || !configMgr.getLogConfig() ||
             !configMgr.getDBConfig() || !configMgr.getBaseConfig())
         {
@@ -58,10 +60,13 @@ void WebServer::run()
             exit(1);
         }
 
-        // 4. 根据加载的配置，重新初始化功能完备的日志系统
+        // 4. 初始化内存池 (在加载配置之后，创建任何Buffer之前)
+        MemoryPool::getInstance();
+
+        // 5. 根据加载的配置，重新初始化功能完备的日志系统
         initLogSystem();
 
-        // 5. 创建并运行WebServer
+        // 6. 创建并运行WebServer
         g_server = std::make_unique<WebServer>(configMgr);
         std::signal(SIGINT, shutdown_handler);
         std::signal(SIGTERM, shutdown_handler);
@@ -108,6 +113,22 @@ WebServer::WebServer(ConfigManager &configManager)
 
     businessPool_ = std::make_unique<ThreadPool>();
     initCallbacks();
+
+    // --- 注册监控路由 ---
+    addRoute("/debug/stats", [this](const HttpRequest &req, HttpResponse *resp)
+             {
+        json stats;
+        
+        // Buffer 统计
+        stats["buffer"]["active_count"] = Buffer::getActiveBuffers();
+        stats["buffer"]["pool_memory_bytes"] = Buffer::getPoolMemory();
+        stats["buffer"]["heap_memory_bytes"] = Buffer::getHeapMemory();
+        stats["buffer"]["resize_count"] = Buffer::getResizeCount();
+        
+        resp->setStatusCode(HttpResponse::k200Ok);
+        resp->setStatusMessage("OK");
+        resp->setContentType("application/json");
+        resp->setBody(stats.dump(4)); });
 }
 
 WebServer::~WebServer()

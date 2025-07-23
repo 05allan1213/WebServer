@@ -4,6 +4,9 @@
 #include <unordered_map>
 #include "log/Log.h"
 
+// 零拷贝阈值，例如 64KB
+const off_t ZERO_COPY_THRESHOLD = 64 * 1024;
+
 // 获取文件扩展名对应的 MIME-Type
 static std::string getMimeType(const std::string &path)
 {
@@ -83,7 +86,18 @@ bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const
         resp->setBody(body);
         return true;
     }
-    // 5. 打开文件，读取内容
+    // 5. 零拷贝判断
+    if (st.st_size > ZERO_COPY_THRESHOLD)
+    {
+        DLOG_INFO << "[StaticFileHandler] 文件 " << filePath << " 大小超过阈值，使用零拷贝";
+        resp->setStatusCode(HttpResponse::k200Ok);
+        resp->setStatusMessage("OK");
+        resp->setContentType(getMimeType(filePath));
+        resp->setContentLength(st.st_size);
+        resp->setFilePath(filePath); // <-- 关键：设置文件路径，而不是body
+        return true;
+    }
+    // 6. 打开文件，读取内容
     std::ifstream ifs(filePath, std::ios::binary);
     if (!ifs)
     {
@@ -96,14 +110,14 @@ bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const
         resp->setBody(body);
         return true;
     }
-    // 6. 读取文件内容到body
+    // 7. 读取文件内容到body
     std::string body((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     std::string mime = getMimeType(filePath);
     DLOG_INFO << "[StaticFileHandler] 成功返回文件: " << filePath << ", MIME: " << mime << ", 大小: " << body.size();
     resp->setStatusCode(HttpResponse::k200Ok);
     resp->setStatusMessage("OK");
     resp->setContentType(mime);
-    resp->setContentLength(body.size());
-    resp->setBody(body);
+    resp->setBody(body); // <-- 读取文件内容到 body
+    // 注意：传统方式不再需要手动设置 Content-Length，appendToBuffer 会自动计算
     return true;
 }

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <optional>
 #include "base/Buffer.h"
 #include "log/Log.h"
 
@@ -80,7 +81,16 @@ public:
         body_ = body;
         DLOG_DEBUG << "[HttpResponse] setBody, 长度: " << body.size();
     }
-
+    /**
+     * @brief 设置一个文件路径用于零拷贝发送
+     * @param path 要发送的文件的完整路径
+     */
+    void setFilePath(const std::string &path) { filePath_ = path; }
+    /**
+     * @brief 获取用于零拷贝的文件路径
+     * @return std::optional<std::string> 包含文件路径，如果未设置则为空
+     */
+    const std::optional<std::string> &getFilePath() const { return filePath_; }
     /**
      * @brief 获取是否需要关闭连接
      * @return true表示需要关闭
@@ -108,4 +118,5 @@ private:
     std::unordered_map<std::string, std::string> headers_; // 响应头部
     std::string body_;                                     // 响应体
     bool closeConnection_;                                 // 是否关闭连接
+    std::optional<std::string> filePath_;                  // 文件路径,用于零拷贝发送
 };

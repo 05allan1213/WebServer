@@ -7,6 +7,9 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/sendfile.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "Channel.h"
 #include "EventLoop.h"
@@ -188,6 +191,71 @@ void TcpConnection::connectDestroyed()
     channel_->remove();
 }
 
+void TcpConnection::sendFile(const std::string &filePath, bool closeAfterSend)
+{
+    if (state_ == kConnected)
+    {
+        loop_->runInLoop(std::bind(&TcpConnection::sendFileInLoop, this, filePath, closeAfterSend));
+    }
+}
+
+void TcpConnection::sendFileInLoop(const std::string &filePath, bool closeAfterSend)
+{
+    loop_->assertInLoopThread();
+    if (state_ == kDisconnected)
+    {
+        DLOG_ERROR << "disconnected, give up sending file";
+        return;
+    }
+
+    int filefd = ::open(filePath.c_str(), O_RDONLY);
+    if (filefd < 0)
+    {
+        DLOG_ERROR << "Failed to open file " << filePath << " for sending";
+        handleError();
+        return;
+    }
+
+    struct stat st;
+    if (::fstat(filefd, &st) < 0)
+    {
+        DLOG_ERROR << "Failed to get stats for file " << filePath;
+        ::close(filefd);
+        handleError();
+        return;
+    }
+
+    DLOG_INFO << "Sending file " << filePath << " (" << st.st_size << " bytes) using sendfile";
+
+    auto closer = [filefd](int *)
+    { ::close(filefd); };
+    std::unique_ptr<int, decltype(closer)> guard(&filefd, closer);
+
+    off_t offset = 0;
+    ssize_t nwrote = ::sendfile(channel_->fd(), filefd, &offset, st.st_size);
+
+    if (nwrote < 0)
+    {
+        DLOG_ERROR << "sendfile error: " << strerror(errno);
+        if (errno != EAGAIN)
+        {
+            handleError();
+        }
+    }
+    else if (static_cast<off_t>(nwrote) < st.st_size)
+    {
+        DLOG_WARN << "sendfile did not send the whole file. Sent " << nwrote << " of " << st.st_size;
+    }
+
+    DLOG_INFO << "sendfile completed, wrote " << nwrote << " bytes.";
+
+    // 使用传入的参数来决定是否关闭连接
+    if (closeAfterSend)
+    {
+        shutdownInLoop();
+    }
+}
+
 void TcpConnection::handleRead(Timestamp receiveTime)
 {
     int saveErrno = 0;
@@ -210,7 +278,16 @@ void TcpConnection::handleRead(Timestamp receiveTime)
                  strongThis->shutdown();
             } });
         // 这是网络库使用者最关心的回调之一(通常对应 onMessage)。
-        messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
+        try
+        {
+            messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
+        }
+        catch (const std::exception &e)
+        {
+            DLOG_ERROR << "Exception in messageCallback for connection " << name_ << ": " << e.what();
+            handleError();
+            shutdown(); // 关闭有问题的连接
+        }
     }
     else if (n == 0) // 对端关闭连接
     {

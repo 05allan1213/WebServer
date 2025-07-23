@@ -43,21 +43,29 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
     }
 }
 
-// ... onMessage 和 onRequest 函数保持不变 ...
 void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp recvTime)
 {
-    DLOG_INFO << "收到消息: 连接=" << conn->name() << ", 数据长度=" << buf->readableBytes();
     auto *parser = std::any_cast<HttpParser>(conn->getMutableContext());
-    if (!parser->parseRequest(buf))
+    try
     {
-        DLOG_WARN << "HTTP请求解析失败: 连接=" << conn->name();
+        if (!parser->parseRequest(buf))
+        {
+            DLOG_WARN << "HTTP请求解析失败: 连接=" << conn->name();
+            conn->send("HTTP/1.1 400 Bad Request\r\n\r\n");
+            conn->shutdown();
+            return;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        DLOG_ERROR << "Exception during parseRequest for " << conn->name() << ": " << e.what();
         conn->send("HTTP/1.1 400 Bad Request\r\n\r\n");
         conn->shutdown();
         return;
     }
+
     if (parser->gotAll())
     {
-        DLOG_INFO << "HTTP请求解析完成: 连接=" << conn->name() << ", 请求路径=" << parser->request().getPath();
         onRequest(conn, parser->request());
         parser->reset();
     }
@@ -65,20 +73,34 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
 
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
-    DLOG_INFO << "处理HTTP请求: 连接=" << conn->name() << ", 路径=" << req.getPath();
     const std::string &connection = req.getHeader("Connection").value_or("close");
     bool close = (connection == "close") ||
                  (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
     HttpResponse response(close);
+
     if (httpCallback_)
-        httpCallback_(req, &response);
-    Buffer buf;
-    response.appendToBuffer(&buf);
-    DLOG_INFO << "发送HTTP响应: 连接=" << conn->name() << ", 响应长度=" << buf.readableBytes();
-    conn->send(buf.retrieveAllAsString());
-    if (response.closeConnection())
     {
-        DLOG_INFO << "关闭连接: " << conn->name();
-        conn->shutdown();
+        httpCallback_(req, &response);
+    }
+
+    const auto &filePath = response.getFilePath();
+    if (filePath.has_value())
+    {
+        Buffer buf;
+        response.appendToBuffer(&buf);
+        conn->send(buf.retrieveAllAsString());
+        // 将关闭连接的决定传递下去
+        conn->sendFile(filePath.value(), response.closeConnection());
+    }
+    else
+    {
+        Buffer buf;
+        response.appendToBuffer(&buf);
+        conn->send(buf.retrieveAllAsString());
+        // 传统方式发送完后，如果需要关闭，则调用 shutdown
+        if (response.closeConnection())
+        {
+            conn->shutdown();
+        }
     }
 }

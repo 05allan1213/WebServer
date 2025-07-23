@@ -7,6 +7,7 @@ add_library(base
     BaseConfig.cpp
     Timestamp.cpp
     ConfigManager.cpp
+    MemoryPool.cpp
     # 其他base源文件
 )
 
@@ -16,4 +17,4 @@ target_include_directories(base PUBLIC ${CMAKE_SOURCE_DIR}/include)
 find_package(yaml-cpp REQUIRED)
 
 # 添加依赖
-target_link_libraries(base PRIVATE yaml-cpp::yaml-cpp)
+target_link_libraries(base PRIVATE yaml-cpp::yaml-cpp pthread)
