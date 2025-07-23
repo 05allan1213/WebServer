@@ -1,6 +1,7 @@
 #pragma once
 #include "http/HttpServer.h"
 #include "net/EventLoop.h"
+#include "http/Router.h"
 #include <memory>
 #include <atomic>
 #include <csignal>
@@ -12,7 +13,7 @@
 #include <mutex>
 
 class ThreadPool;
-class ConfigManager; // <-- 保持前向声明
+class ConfigManager;
 class NetworkConfig;
 
 /**
@@ -50,21 +51,17 @@ public:
      */
     static void shutdown_handler(int signo);
     /**
-     * @brief 注册路由
-     * @param path 路径（如 /api/hello）
-     * @param cb   处理回调
+     * @brief 获取路由器的引用，用于注册路由和中间件
+     * @return Router&
      */
-    void addRoute(const std::string &path, const HttpServer::HttpCallback &cb);
+    Router &getRouter() { return router_; }
+
     /**
-     * @brief 设置未命中路由时的回调（可选）
+     * @brief 注册路由
      */
-    void setNotFoundHandler(const HttpServer::HttpCallback &cb);
+    void registerRoutes();
 
 private:
-    /**
-     * @brief 初始化日志系统(可扩展为异步/多级日志等)
-     */
-    void initLog();
     /**
      * @brief 初始化 HTTP 回调，将请求分发到 onHttpRequest
      */
@@ -75,30 +72,16 @@ private:
      * @param resp HTTP响应对象
      */
     void onHttpRequest(const HttpRequest &req, HttpResponse *resp);
-    /**
-     * @brief 处理静态资源请求(如 html/css/js 等)
-     * @param req HTTP请求对象
-     * @param resp HTTP响应对象
-     */
-    void handleStatic(const HttpRequest &req, HttpResponse *resp);
-    /**
-     * @brief 处理动态接口请求(如 /api/ 路径)
-     * @param req HTTP请求对象
-     * @param resp HTTP响应对象
-     */
-    void handleDynamic(const HttpRequest &req, HttpResponse *resp);
 
     ConfigManager &configManager_;                 // 保存配置管理器的引用
     std::shared_ptr<NetworkConfig> networkConfig_; // 保存网络配置
 
-    std::unique_ptr<EventLoop> mainLoop_;                              // 主事件循环对象，负责 IO 事件分发
-    std::unique_ptr<HttpServer> server_;                               // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
-    std::unique_ptr<ThreadPool> businessPool_;                         // 业务线程池，处理耗时任务(可扩展)
-    std::shared_ptr<LogManager> logManager_;                           // 日志管理器，保证日志系统生命周期覆盖 WebServer
-    std::atomic_bool running_;                                         // 运行状态标志，线程安全
-    std::unordered_map<std::string, HttpServer::HttpCallback> router_; // 路由表
-    std::mutex routerMutex_;                                           // 路由表线程安全
-    HttpServer::HttpCallback notFoundHandler_;                         // 404处理回调
+    std::unique_ptr<EventLoop> mainLoop_;      // 主事件循环对象，负责 IO 事件分发
+    std::unique_ptr<HttpServer> server_;       // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
+    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务(可扩展)
+    std::shared_ptr<LogManager> logManager_;   // 日志管理器，保证日志系统生命周期覆盖 WebServer
+    std::atomic_bool running_;                 // 运行状态标志，线程安全
+    Router router_;                            // 路由器，负责路由和中间件管理
 };
 
 // JWT认证检查函数声明

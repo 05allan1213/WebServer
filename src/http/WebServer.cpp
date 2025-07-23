@@ -17,8 +17,60 @@
 
 using json = nlohmann::json;
 
+// --- 业务处理函数 ---
 void userLogin(const HttpRequest &req, HttpResponse *resp);
 void userRegister(const HttpRequest &req, HttpResponse *resp);
+
+// --- 中间件和处理器包装 ---
+/**
+ * @brief 日志中间件
+ * @details 记录每个请求的开始和结束，以及处理耗时。
+ */
+void loggingMiddleware(const HttpRequest &req, HttpResponse *resp, Next next)
+{
+    auto start = std::chrono::high_resolution_clock::now();
+    DLOG_INFO << "--> " << req.getMethodString() << " " << req.getPath();
+
+    next(); // 调用后续中间件或处理器
+
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::high_resolution_clock::now() - start);
+    DLOG_INFO << "<-- " << req.getMethodString() << " " << req.getPath()
+              << " " << resp->getStatusCode() << " " << duration.count() << "us";
+}
+
+/**
+ * @brief 认证中间件
+ * @details 检查JWT，如果通过则调用next()，否则直接返回403。
+ */
+void authMiddleware(const HttpRequest &req, HttpResponse *resp, Next next)
+{
+    int user_id = -1;
+    if (checkAuth(req, user_id))
+    {
+        const_cast<HttpRequest &>(req).setUserId(user_id);
+        DLOG_INFO << "[Auth] 认证成功, user_id: " << user_id;
+        next(); // 认证成功，继续处理
+    }
+    else
+    {
+        DLOG_WARN << "[Auth] 认证失败, 路径: " << req.getPath();
+        resp->setStatusCode(HttpResponse::k403Forbidden);
+        resp->setBody("{\"error\":\"Forbidden\"}");
+        resp->setContentType("application/json");
+        // 认证失败，中断请求链
+    }
+}
+
+/**
+ * @brief 静态文件处理器
+ * @details 这是一个HttpHandler，作为中间件链的终点。
+ */
+void staticFileHandler(const HttpRequest &req, HttpResponse *resp)
+{
+    // 默认从 "web_static" 目录提供文件
+    StaticFileHandler::handle(req, resp);
+}
 
 class ThreadPool
 {
@@ -88,7 +140,8 @@ void WebServer::run()
  */
 WebServer::WebServer(ConfigManager &configManager)
     : running_(false),
-      configManager_(configManager)
+      configManager_(configManager),
+      router_()
 {
     logManager_ = LogManager::getInstance();
 
@@ -113,22 +166,7 @@ WebServer::WebServer(ConfigManager &configManager)
 
     businessPool_ = std::make_unique<ThreadPool>();
     initCallbacks();
-
-    // --- 注册监控路由 ---
-    addRoute("/debug/stats", [this](const HttpRequest &req, HttpResponse *resp)
-             {
-        json stats;
-        
-        // Buffer 统计
-        stats["buffer"]["active_count"] = Buffer::getActiveBuffers();
-        stats["buffer"]["pool_memory_bytes"] = Buffer::getPoolMemory();
-        stats["buffer"]["heap_memory_bytes"] = Buffer::getHeapMemory();
-        stats["buffer"]["resize_count"] = Buffer::getResizeCount();
-        
-        resp->setStatusCode(HttpResponse::k200Ok);
-        resp->setStatusMessage("OK");
-        resp->setContentType("application/json");
-        resp->setBody(stats.dump(4)); });
+    registerRoutes();
 }
 
 WebServer::~WebServer()
@@ -136,9 +174,50 @@ WebServer::~WebServer()
     stop();
 }
 
-void WebServer::initLog()
+/**
+ * @brief 注册所有路由和中间件
+ * @details 定义服务器的所有 API 端点和行为。
+ */
+void WebServer::registerRoutes()
 {
-    DLOG_INFO << "[WebServer] 日志系统由全局 initLogSystem() 函数初始化";
+    DLOG_INFO << "[WebServer] 开始注册路由...";
+
+    // --- 全局中间件 ---
+    // 对所有请求都应用日志中间件。
+    router_.use(loggingMiddleware);
+
+    // --- API 路由 ---
+    router_.post("/api/register", userRegister);
+    router_.post("/api/login", userLogin);
+
+    // --- 受保护的 API (需要认证) ---
+    // 请求会先通过 loggingMiddleware，然后通过 authMiddleware，最后到达业务处理器。
+    router_.get("/api/profile", authMiddleware, [](const HttpRequest &req, HttpResponse *resp)
+                {
+        json profile;
+        profile["user_id"] = req.getUserId();
+        profile["username"] = "test_user"; // 实际应从数据库查询
+        resp->setStatusCode(HttpResponse::k200Ok);
+        resp->setContentType("application/json");
+        resp->setBody(profile.dump()); });
+
+    // --- 监控路由 ---
+    router_.get("/debug/stats", [this](const HttpRequest &req, HttpResponse *resp)
+                {
+        json stats;
+        stats["buffer"]["active_count"] = Buffer::getActiveBuffers();
+        stats["buffer"]["pool_memory_bytes"] = Buffer::getPoolMemory();
+        stats["buffer"]["heap_memory_bytes"] = Buffer::getHeapMemory();
+        stats["buffer"]["resize_count"] = Buffer::getResizeCount();
+        resp->setStatusCode(HttpResponse::k200Ok);
+        resp->setContentType("application/json");
+        resp->setBody(stats.dump(4)); });
+
+    // --- 静态文件路由 (作为所有路由的末端) ---
+    // 使用 all() 方法捕获所有未被上面 API 路由匹配到的请求。
+    router_.all("/*", staticFileHandler);
+
+    DLOG_INFO << "[WebServer] 路由注册完成。";
 }
 
 /**
@@ -147,143 +226,47 @@ void WebServer::initLog()
 void WebServer::initCallbacks()
 {
     server_->setHttpCallback(std::bind(&WebServer::onHttpRequest, this, std::placeholders::_1, std::placeholders::_2));
-    // 自动注册 /api/login 和 /api/register 路由
-    addRoute("/api/login", userLogin);
-    addRoute("/api/register", userRegister);
-}
-
-void WebServer::addRoute(const std::string &path, const HttpServer::HttpCallback &cb)
-{
-    std::lock_guard<std::mutex> lock(routerMutex_);
-    router_[path] = cb;
-}
-
-void WebServer::setNotFoundHandler(const HttpServer::HttpCallback &cb)
-{
-    std::lock_guard<std::mutex> lock(routerMutex_);
-    notFoundHandler_ = cb;
 }
 
 /**
  * @brief HTTP请求统一入口，根据 path 路由到静态或动态处理，并对需要认证的API统一做JWT校验和user_id注入
  * @param req HTTP请求对象
  * @param resp HTTP响应对象
- *
- * 认证策略：
- *   - 对 /api/ 前缀且不是 /api/login 和 /api/register 的接口，自动校验JWT。
- *   - 认证通过后，将user_id写入HttpRequest对象，业务处理函数可直接通过req.getUserId()获取。
- *   - 认证失败则直接返回403。
  */
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
-    DLOG_INFO << "[WebServer] 收到HTTP请求: " << req.getPath();
-    // 统一认证入口：对/api/前缀且不是/api/login和/api/register的接口做JWT校验
-    if (req.getPath().rfind("/api/", 0) == 0 &&
-        req.getPath() != "/api/login" && req.getPath() != "/api/register")
-    {
-        DLOG_INFO << "[WebServer] 需要认证接口: " << req.getPath();
-        int user_id = -1;
-        if (!checkAuth(req, user_id))
-        {
-            DLOG_WARN << "[WebServer] 认证失败: " << req.getPath();
-            resp->setStatusCode(HttpResponse::k403Forbidden);
-            resp->setStatusMessage("Unauthorized");
-            resp->setContentType("application/json");
-            resp->setBody(R"({"error":"Unauthorized, please login first."})");
-            return;
-        }
-        DLOG_INFO << "[WebServer] 认证通过, user_id=" << user_id;
-        const_cast<HttpRequest &>(req).setUserId(user_id);
-    }
-    // 路由分发：优先查找路由表
-    {
-        std::lock_guard<std::mutex> lock(routerMutex_);
-        auto it = router_.find(req.getPath());
-        if (it != router_.end())
-        {
-            DLOG_INFO << "[WebServer] 命中业务路由: " << req.getPath();
-            it->second(req, resp);
-            return;
-        }
-    }
-    // 优先尝试静态文件
-    if (StaticFileHandler::handle(req, resp))
-    {
-        DLOG_INFO << "[WebServer] 静态资源处理成功: " << req.getPath();
-        return;
-    }
-    // 静态文件也没找到，才走 notFoundHandler
-    if (notFoundHandler_)
-    {
-        DLOG_WARN << "[WebServer] 未命中任何路由, 进入notFoundHandler: " << req.getPath();
-        notFoundHandler_(req, resp);
-    }
-    else
-    {
-        DLOG_WARN << "[WebServer] 未命中任何路由, 返回404: " << req.getPath();
-        std::ifstream ifs("web_static/404.html");
-        std::stringstream buffer;
-        if (ifs)
-        {
-            buffer << ifs.rdbuf();
-            resp->setStatusCode(HttpResponse::k404NotFound);
-            resp->setStatusMessage("Not Found");
-            resp->setContentType("text/html");
-            resp->setBody(buffer.str());
-        }
-        else
-        {
-            resp->setStatusCode(HttpResponse::k404NotFound);
-            resp->setStatusMessage("Not Found");
-            resp->setContentType("text/html");
-            resp->setBody("<html><body><h1>404 Not Found</h1></body></html>");
-        }
-    }
-}
+    const char *methodStr = req.getMethodString();
+    const std::string &path = req.getPath();
+    DLOG_INFO << "[WebServer] 收到HTTP请求: " << methodStr << " " << path;
+    RouteMatchResult result = router_.match(methodStr, path);
 
-/**
- * @brief 处理静态资源请求(如 html/css/js 等)
- * @param req HTTP请求对象
- * @param resp HTTP响应对象
- */
-void WebServer::handleStatic(const HttpRequest &req, HttpResponse *resp)
-{
-    if (StaticFileHandler::handle(req, resp))
+    if (!result.matched || result.chain.empty())
     {
-        DLOG_INFO << "[WebServer] 静态资源处理成功: " << req.getPath();
-    }
-    else
-    {
-        DLOG_WARN << "[WebServer] 静态资源未找到: " << req.getPath();
         resp->setStatusCode(HttpResponse::k404NotFound);
         resp->setStatusMessage("Not Found");
+        resp->setBody("<html><body><h1>404 Not Found</h1></body></html>");
         resp->setContentType("text/html");
-        std::ifstream ifs("web_static/404.html");
-        std::stringstream buffer;
-        if (ifs)
-        {
-            buffer << ifs.rdbuf();
-            resp->setBody(buffer.str());
-        }
-        else
-        {
-            resp->setBody("<html><body><h1>404 Not Found</h1></body></html>");
-        }
+        DLOG_WARN << "[WebServer] 404 Not Found: " << path;
+        return;
     }
-}
 
-/**
- * @brief 处理动态接口请求(如 /api/ 路径)
- * @param req HTTP请求对象
- * @param resp HTTP响应对象
- */
-void WebServer::handleDynamic(const HttpRequest &req, HttpResponse *resp)
-{
-    // 业务逻辑处理(可扩展为线程池任务)
-    resp->setStatusCode(HttpResponse::k200Ok);
-    resp->setStatusMessage("OK");
-    resp->setContentType("application/json");
-    resp->setBody("{\"msg\":\"动态接口响应\"}");
+    // --- 执行中间件链 ---
+    size_t index = 0;
+    const MiddlewareChain &chain = result.chain;
+
+    // 捕获 this, req, resp, chain, index, 并通过值传递 next 本身
+    std::function<void()> next;
+    next = [&]()
+    {
+        if (index < chain.size())
+        {
+            const auto &middleware = chain[index++];
+            middleware(req, resp, next);
+        }
+    };
+
+    // 启动链
+    next();
 }
 
 // 自动记录日志的 SQL 执行函数

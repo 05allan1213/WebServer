@@ -47,6 +47,12 @@ public:
     }
 
     /**
+     * @brief 获取响应状态码
+     * @return 状态码枚举
+     */
+    HttpStatusCode getStatusCode() const { return statusCode_; }
+
+    /**
      * @brief 设置状态消息
      * @param message 状态消息字符串
      */

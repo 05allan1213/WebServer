@@ -85,6 +85,25 @@ std::optional<std::string> HttpRequest::getHeader(const std::string &field) cons
     return std::nullopt;
 }
 
+const char *HttpRequest::getMethodString() const
+{
+    switch (method_)
+    {
+    case Method::kGet:
+        return "GET";
+    case Method::kPost:
+        return "POST";
+    case Method::kPut:
+        return "PUT";
+    case Method::kDelete:
+        return "DELETE";
+    case Method::kHead:
+        return "HEAD";
+    default:
+        return "INVALID";
+    }
+}
+
 void HttpRequest::swap(HttpRequest &that)
 {
     std::swap(method_, that.method_);

@@ -2,22 +2,13 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 class Buffer;
 class TcpConnection;
 class Timestamp;
-
-/**
- * @brief 网络库中使用的各种回调函数类型定义
- *
- * 这个文件定义了网络库中所有用到的回调函数类型,包括：
- * - 连接相关的回调(建立、断开)
- * - 数据传输相关的回调(消息到达、写完成)
- * - 流量控制相关的回调(高水位)
- *
- * 所有回调函数都使用std::function包装,支持函数指针、成员函数、lambda表达式等。
- * 回调函数的参数通常包含TcpConnectionPtr,方便访问连接信息和进行数据操作。
- */
+class HttpRequest;
+class HttpResponse;
 
 /** @brief TcpConnection的智能指针类型 */
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
@@ -68,3 +59,26 @@ using MessageCallback = std::function<void(const TcpConnectionPtr &, Buffer *, T
  * 用户可以通过此回调函数实现背压机制,防止发送缓冲区无限增长。
  */
 using HighWaterMarkCallback = std::function<void(const TcpConnectionPtr &, size_t)>;
+
+/**
+ * @brief 'next' 回调函数类型
+ * @details 中间件通过调用此函数将控制权传递给处理链中的下一个中间件。
+ */
+using Next = std::function<void()>;
+
+/**
+ * @brief HTTP 业务处理器函数类型
+ * @details 这是中间件处理链的终点，负责核心的业务逻辑。
+ */
+using HttpHandler = std::function<void(const HttpRequest &, HttpResponse *)>;
+
+/**
+ * @brief 中间件函数类型
+ * @details 一个中间件接收请求、响应和 next 回调作为参数。
+ */
+using Middleware = std::function<void(const HttpRequest &, HttpResponse *, Next)>;
+
+/**
+ * @brief 中间件链类型
+ */
+using MiddlewareChain = std::vector<Middleware>;

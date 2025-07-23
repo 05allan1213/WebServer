@@ -55,6 +55,7 @@ public:
      * @return Method枚举值
      */
     Method getMethod() const { return method_; }
+    const char *getMethodString() const;
 
     /**
      * @brief 设置请求路径
@@ -144,7 +145,7 @@ public:
 
 private:
     Method method_;                                        // 请求方法
-    Version version_;                                      // 协议版本
+    Version version_;                                      // 协议版本`
     std::string path_;                                     // 请求路径
     std::string query_;                                    // 查询参数
     std::unordered_map<std::string, std::string> headers_; // 头部字段
