@@ -196,3 +196,18 @@ ssize_t Buffer::writeFd(int fd, int *saveErrno)
     }
     return n;
 }
+
+const char *Buffer::findCRLF() const
+{
+    const char *crlf = std::search(peek(), beginWrite(), "\r\n", "\r\n" + 2);
+    return crlf == beginWrite() ? nullptr : crlf;
+}
+
+void Buffer::retrieveUntil(const char *end)
+{
+    if (peek() > end)
+    {
+        throw std::out_of_range("Buffer::retrieveUntil error: end is before peek()");
+    }
+    retrieve(end - peek());
+}

@@ -35,6 +35,9 @@ public:
 
     const char *peek() const { return data_ + readerIndex_; }
 
+    const char *findCRLF() const;
+    void retrieveUntil(const char *end);
+
     void retrieve(size_t len);
     void retrieveAll();
     std::string retrieveAllAsString();

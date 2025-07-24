@@ -23,7 +23,11 @@ public:
         kExpectRequestLine, // 期待请求行
         kExpectHeaders,     // 期待头部
         kExpectBody,        // 期待消息体
-        kGotAll             // 解析完成
+        kGotAll,            // 解析完成
+        kExpectChunkSize,   // 期待分块大小
+        kExpectChunkBody,   // 期待分块数据
+        kExpectChunkFooter, // 期待分块后的CRLF
+        kExpectLastChunk    // 期待最后的0\r\n\r\n
     };
 
     /**
@@ -68,4 +72,5 @@ private:
 
     HttpRequestParseState state_; // 当前解析状态
     HttpRequest request_;         // 当前解析得到的请求对象
+    size_t chunkLeft_;            // 当前分块剩余待读取的字节数
 };

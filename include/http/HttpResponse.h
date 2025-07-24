@@ -107,6 +107,13 @@ public:
     bool closeConnection() const { return closeConnection_; }
 
     /**
+     * @brief 启用分块传输编码
+     * @details 当响应体很大或长度未知时使用。
+     * 启用后，将忽略Content-Length，并使用Transfer-Encoding: chunked。
+     */
+    void setChunkedEncoding(bool on) { chunked_ = on; }
+
+    /**
      * @brief 序列化响应为HTTP报文,写入缓冲区
      * @param output 输出缓冲区指针
      */
@@ -128,4 +135,5 @@ private:
     std::string body_;                                     // 响应体
     bool closeConnection_;                                 // 是否关闭连接
     std::optional<std::string> filePath_;                  // 文件路径,用于零拷贝发送
+    bool chunked_ = false;                                 // 是否启用分块传输编码
 };

@@ -18,29 +18,33 @@ HttpResponse::HttpResponse(bool close)
  */
 void HttpResponse::appendToBuffer(Buffer *output) const
 {
-    DLOG_INFO << "[HttpResponse] appendToBuffer, 状态码: " << statusCode_ << ", 消息: " << statusMessage_ << ", body长度: " << body_.size();
-    // 1. 添加状态行：HTTP/1.1 状态码 状态消息\r\n
     char buf[32];
+    // 1. 添加状态行
     snprintf(buf, sizeof(buf), "HTTP/1.1 %d ", statusCode_);
     output->append(buf, strlen(buf));
     output->append(statusMessage_.c_str(), statusMessage_.size());
     output->append("\r\n", 2);
 
-    // 2. 添加Connection头部
-    if (closeConnection_)
+    // 2. 添加头部
+    if (chunked_)
     {
-        // 如果需要关闭连接，添加"Connection: close"
-        output->append("Connection: close\r\n", strlen("Connection: close\r\n"));
+        output->append("Transfer-Encoding: chunked\r\n", 25);
     }
     else
     {
-        // 否则添加Content-Length和"Connection: Keep-Alive"
         snprintf(buf, sizeof(buf), "Content-Length: %zd\r\n", body_.size());
         output->append(buf, strlen(buf));
-        output->append("Connection: Keep-Alive\r\n", strlen("Connection: Keep-Alive\r\n"));
     }
 
-    // 3. 添加其他自定义头部
+    if (closeConnection_)
+    {
+        output->append("Connection: close\r\n", 17);
+    }
+    else
+    {
+        output->append("Connection: Keep-Alive\r\n", 21);
+    }
+
     for (const auto &header : headers_)
     {
         output->append(header.first.c_str(), header.first.size());
@@ -49,11 +53,26 @@ void HttpResponse::appendToBuffer(Buffer *output) const
         output->append("\r\n", 2);
     }
 
-    // 4. 添加空行，分隔头部和消息体
+    // 头部和Body之间的空行
     output->append("\r\n", 2);
 
-    // 5. 添加消息体
-    output->append(body_.c_str(), body_.size());
+    // 3. 添加Body
+    if (chunked_)
+    {
+        if (!body_.empty())
+        {
+            snprintf(buf, sizeof(buf), "%zx\r\n", body_.size());
+            output->append(buf, strlen(buf));
+            output->append(body_.c_str(), body_.size());
+            output->append("\r\n", 2);
+        }
+        // 结束块
+        output->append("0\r\n\r\n", 5);
+    }
+    else
+    {
+        output->append(body_.c_str(), body_.size());
+    }
 }
 
 /**

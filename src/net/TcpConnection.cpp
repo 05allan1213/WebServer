@@ -474,7 +474,18 @@ void TcpConnection::handleSSLHandshake()
         channel_->setWriteCallback(std::bind(&TcpConnection::handleWrite, this));
         channel_->disableWriting();              // 握手后通常先等待读
         connectionCallback_(shared_from_this()); // 触发连接建立回调
-        // ... (设置空闲超时定时器) ...
+
+        // 为连接成功设置空闲超时定时器
+        int idleTimeout = networkConfig_->getIdleTimeout();
+        DLOG_INFO << "[IdleTimeout] 连接 " << name_ << " 设置空闲超时定时器: " << idleTimeout << " 秒";
+        auto weakThis = std::weak_ptr<TcpConnection>(shared_from_this());
+        idleTimerId_ = loop_->runAfter(static_cast<double>(idleTimeout), [weakThis]
+                                       {
+            auto strongThis = weakThis.lock();
+            if (strongThis) {
+                DLOG_INFO << "[IdleTimeout] 连接 " << strongThis->name() << " 超时触发, 关闭连接";
+                strongThis->shutdown();
+            } });
     }
     else
     {
@@ -491,8 +502,24 @@ void TcpConnection::handleSSLHandshake()
         }
         else
         {
-            DLOG_ERROR << "[SSL] Handshake failed for " << name() << ". Error: " << err;
-            ERR_print_errors_fp(stderr);
+            // 从OpenSSL的错误队列中获取更详细的错误信息
+            unsigned long errCode = ERR_get_error();
+            char errBuf[256];
+            ERR_error_string_n(errCode, errBuf, sizeof(errBuf));
+
+            // 判断是否是客户端不信任我们的证书导致的“正常”失败
+            if (strstr(errBuf, "certificate unknown") != nullptr)
+            {
+                // 将日志级别降为INFO，并使用中文提示
+                DLOG_INFO << "[SSL] 客户端浏览器拒绝了服务器的自签名证书，这是一个正常的开发期行为。连接: " << name();
+            }
+            else
+            {
+                // 对于其他真正的错误，我们仍然作为ERROR记录
+                DLOG_ERROR << "[SSL] 握手失败, 连接: " << name()
+                           << ", OpenSSL错误码: " << err
+                           << ", 详细信息: " << errBuf;
+            }
             handleClose();
         }
     }

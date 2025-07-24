@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <iterator>
 #include <cstring>
+#include "log/Log.h"
 
-HttpParser::HttpParser() : state_(HttpRequestParseState::kExpectRequestLine) {}
+HttpParser::HttpParser()
+    : state_(HttpRequestParseState::kExpectRequestLine), chunkLeft_(0) {}
 
 void HttpParser::reset()
 {
     state_ = HttpRequestParseState::kExpectRequestLine;
+    chunkLeft_ = 0;
     HttpRequest dummy;
     request_.swap(dummy);
 }
@@ -19,21 +22,16 @@ bool HttpParser::parseRequest(Buffer *buf)
     bool hasMore = true;
     while (hasMore)
     {
+        // --- 1. 解析请求行 ---
         if (state_ == HttpRequestParseState::kExpectRequestLine)
         {
-            const char *crlf = nullptr;
-            const char *peek = buf->peek();
-            size_t len = buf->readableBytes();
-            const char *end = peek + len;
-            auto it = std::search(peek, end, "\r\n", "\r\n" + 2);
-            if (it != end)
-                crlf = it;
+            const char *crlf = buf->findCRLF();
             if (crlf)
             {
                 ok = parseRequestLine(buf->peek(), crlf);
                 if (ok)
                 {
-                    buf->retrieve(crlf + 2 - buf->peek());
+                    buf->retrieveUntil(crlf + 2);
                     state_ = HttpRequestParseState::kExpectHeaders;
                 }
                 else
@@ -46,15 +44,10 @@ bool HttpParser::parseRequest(Buffer *buf)
                 hasMore = false;
             }
         }
+        // --- 2. 解析请求头 ---
         else if (state_ == HttpRequestParseState::kExpectHeaders)
         {
-            const char *crlf = nullptr;
-            const char *peek = buf->peek();
-            size_t len = buf->readableBytes();
-            const char *end = peek + len;
-            auto it = std::search(peek, end, "\r\n", "\r\n" + 2);
-            if (it != end)
-                crlf = it;
+            const char *crlf = buf->findCRLF();
             if (crlf)
             {
                 const char *colon = std::find(buf->peek(), crlf, ':');
@@ -64,31 +57,36 @@ bool HttpParser::parseRequest(Buffer *buf)
                 }
                 else
                 {
-                    // Empty line, end of headers
-                    state_ = HttpRequestParseState::kExpectBody;
+                    // 空行，头部解析结束，判断body类型
+                    auto transferEncoding = request_.getHeader("Transfer-Encoding");
+                    if (transferEncoding && *transferEncoding == "chunked")
+                    {
+                        state_ = HttpRequestParseState::kExpectChunkSize;
+                    }
+                    else
+                    {
+                        state_ = HttpRequestParseState::kExpectBody;
+                    }
                 }
-                buf->retrieve(crlf + 2 - buf->peek());
+                buf->retrieveUntil(crlf + 2);
             }
             else
             {
                 hasMore = false;
             }
         }
+        // --- 3. 解析普通Body (Content-Length) ---
         else if (state_ == HttpRequestParseState::kExpectBody)
         {
-            // For simplicity, this parser only handles requests where Content-Length is specified.
-            // A more complete implementation would need to handle chunked encoding.
             if (request_.getMethod() == HttpRequest::Method::kPost || request_.getMethod() == HttpRequest::Method::kPut)
             {
                 auto contentLengthOpt = request_.getHeader("Content-Length");
                 if (!contentLengthOpt.has_value())
                 {
-                    // Assuming no body if Content-Length is not present
                     state_ = HttpRequestParseState::kGotAll;
                     hasMore = false;
-                    continue; // Re-evaluate loop condition
+                    continue;
                 }
-
                 size_t contentLength = 0;
                 try
                 {
@@ -96,9 +94,7 @@ bool HttpParser::parseRequest(Buffer *buf)
                 }
                 catch (...)
                 {
-                    ok = false;
-                    hasMore = false;
-                    break;
+                    return false;
                 }
 
                 if (buf->readableBytes() >= contentLength)
@@ -110,12 +106,88 @@ bool HttpParser::parseRequest(Buffer *buf)
                 }
                 else
                 {
-                    hasMore = false; // Need more data
+                    hasMore = false;
                 }
             }
             else
             {
                 state_ = HttpRequestParseState::kGotAll;
+                hasMore = false;
+            }
+        }
+        // --- 4. 解析分块大小 ---
+        else if (state_ == HttpRequestParseState::kExpectChunkSize)
+        {
+            const char *crlf = buf->findCRLF();
+            if (crlf)
+            {
+                std::string size_str(buf->peek(), crlf);
+                try
+                {
+                    chunkLeft_ = std::stoul(size_str, nullptr, 16);
+                }
+                catch (...)
+                {
+                    return false; // 无效的16进制大小
+                }
+
+                buf->retrieveUntil(crlf + 2);
+
+                if (chunkLeft_ == 0)
+                {
+                    state_ = HttpRequestParseState::kExpectLastChunk;
+                }
+                else
+                {
+                    state_ = HttpRequestParseState::kExpectChunkBody;
+                }
+            }
+            else
+            {
+                hasMore = false;
+            }
+        }
+        // --- 5. 解析分块数据 ---
+        else if (state_ == HttpRequestParseState::kExpectChunkBody)
+        {
+            if (buf->readableBytes() >= chunkLeft_)
+            {
+                request_.getBody().append(buf->peek(), chunkLeft_);
+                buf->retrieve(chunkLeft_);
+                chunkLeft_ = 0;
+                state_ = HttpRequestParseState::kExpectChunkFooter;
+            }
+            else
+            {
+                hasMore = false;
+            }
+        }
+        // --- 6. 消费分块数据后的CRLF ---
+        else if (state_ == HttpRequestParseState::kExpectChunkFooter)
+        {
+            const char *crlf = buf->findCRLF();
+            if (crlf)
+            {
+                buf->retrieveUntil(crlf + 2);
+                state_ = HttpRequestParseState::kExpectChunkSize;
+            }
+            else
+            {
+                hasMore = false;
+            }
+        }
+        // --- 7. 处理最后的空分块 ---
+        else if (state_ == HttpRequestParseState::kExpectLastChunk)
+        {
+            const char *crlf = buf->findCRLF();
+            if (crlf && crlf == buf->peek()) // 必须是空行
+            {
+                buf->retrieveUntil(crlf + 2);
+                state_ = HttpRequestParseState::kGotAll;
+                hasMore = false;
+            }
+            else
+            {
                 hasMore = false;
             }
         }
