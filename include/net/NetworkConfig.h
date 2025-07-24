@@ -27,6 +27,9 @@ public:
     std::string getEpollMode() const;
     bool isET() const;
     int getIdleTimeout() const;
+    bool isSSLEnabled() const;
+    std::string getSSLCertPath() const;
+    std::string getSSLKeyPath() const;
 
 private:
     void validateConfig(const std::string &ip, int port, int threadNum, int queueSize,

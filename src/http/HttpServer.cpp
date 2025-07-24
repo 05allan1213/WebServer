@@ -13,7 +13,7 @@
  * 初始化底层TcpServer,设置连接和消息回调。
  */
 HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config)
-    : server_(loop, addr, name, config) // <-- 将 config 传递给 TcpServer
+    : server_(loop, addr, name, config)
 {
     DLOG_INFO << "HttpServer 构造: 监听地址=" << addr.toIpPort();
     server_.setConnectionCallback(
@@ -22,6 +22,11 @@ HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::stri
         std::bind(&HttpServer::onMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
     // TcpServer 内部会根据 config 设置线程数，这里不再需要 setThreadNum
+}
+
+void HttpServer::enableSSL(const std::string &certPath, const std::string &keyPath)
+{
+    server_.enableSSL(certPath, keyPath);
 }
 
 /**

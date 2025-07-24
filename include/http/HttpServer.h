@@ -27,10 +27,20 @@ public:
     HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config);
 
     /**
+     * @brief 启用HTTPS
+     * @param certPath 密钥路径
+     * @param keyPath 证书路径
+     */
+    void enableSSL(const std::string &certPath, const std::string &keyPath);
+
+    /**
      * @brief 设置HTTP业务回调
      * @param cb 用户自定义的回调函数
      */
-    void setHttpCallback(const HttpCallback &cb) { httpCallback_ = cb; }
+    void setHttpCallback(const HttpCallback &cb)
+    {
+        httpCallback_ = cb;
+    }
 
     /**
      * @brief 启动HTTP服务器

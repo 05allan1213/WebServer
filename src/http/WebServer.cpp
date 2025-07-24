@@ -137,6 +137,23 @@ WebServer::WebServer(ConfigManager &configManager)
 
     server_ = std::make_unique<HttpServer>(mainLoop_.get(), addr, "WebServer-01", networkConfig_);
 
+    if (networkConfig_->isSSLEnabled())
+    {
+        std::string certPath = networkConfig_->getSSLCertPath();
+        std::string keyPath = networkConfig_->getSSLKeyPath();
+        if (certPath.empty() || keyPath.empty())
+        {
+            DLOG_FATAL << "SSL/TLS is enabled, but certificate or key path is not configured.";
+            throw std::runtime_error("SSL/TLS 配置缺失");
+        }
+        server_->enableSSL(certPath, keyPath);
+        DLOG_INFO << "[WebServer] HTTPS 服务已启用";
+    }
+    else
+    {
+        DLOG_INFO << "[WebServer] HTTP 服务已启用";
+    }
+
     businessPool_ = std::make_unique<ThreadPool>();
     initCallbacks();
     registerRoutes();

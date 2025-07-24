@@ -214,3 +214,30 @@ int NetworkConfig::getIdleTimeout() const
     DLOG_WARN << "[NetworkConfig] 配置项 network.idle_timeout 缺失，使用默认值 30";
     return 30;
 }
+
+bool NetworkConfig::isSSLEnabled() const
+{
+    if (node_ && node_["ssl"] && node_["ssl"]["enable"])
+    {
+        return node_["ssl"]["enable"].as<bool>();
+    }
+    return false;
+}
+
+std::string NetworkConfig::getSSLCertPath() const
+{
+    if (node_ && node_["ssl"] && node_["ssl"]["cert_path"])
+    {
+        return node_["ssl"]["cert_path"].as<std::string>();
+    }
+    return "";
+}
+
+std::string NetworkConfig::getSSLKeyPath() const
+{
+    if (node_ && node_["ssl"] && node_["ssl"]["key_path"])
+    {
+        return node_["ssl"]["key_path"].as<std::string>();
+    }
+    return "";
+}

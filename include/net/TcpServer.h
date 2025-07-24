@@ -17,6 +17,8 @@
 #include "log/Log.h"
 #include "net/NetworkConfig.h"
 
+class SSLContext;
+
 /**
  * @brief TCP服务器类,提供TCP连接的管理和服务
  */
@@ -54,6 +56,13 @@ public:
      * 清理所有连接资源,停止服务器
      */
     ~TcpServer();
+
+    /**
+     * @brief 启用HTTPS/SSL
+     * @param certPath 证书路径
+     * @param keyPath 私钥路径
+     */
+    void enableSSL(const std::string &certPath, const std::string &keyPath);
 
     /**
      * @brief 设置线程初始化回调函数
@@ -135,6 +144,9 @@ private:
     std::shared_ptr<EventLoopThreadPool> threadPool_; // IO线程池,处理已建立连接上的IO事件
 
     std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置对象的共享指针
+
+    // SSL/TLS 相关
+    std::unique_ptr<SSLContext> sslContext_; // SSL上下文
 
     /** @brief 用户设置的回调函数 */
     ConnectionCallback connectionCallback_;       // 连接建立/断开回调函数

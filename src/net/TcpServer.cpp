@@ -5,6 +5,7 @@
 #include "log/Log.h"
 #include "TcpConnection.h"
 #include "base/ConfigManager.h"
+#include "ssl/SSLContext.h"
 
 // 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
@@ -29,6 +30,7 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
       // 读取 epoll_mode 配置并传递给线程池
       threadPool_(new EventLoopThreadPool(loop, name_, config->getEpollMode())),
       networkConfig_(config),
+      sslContext_(nullptr),
       connectionCallback_(),
       messageCallback_(),
       nextConnId_(1),
@@ -65,6 +67,12 @@ TcpServer::~TcpServer()
 
     DLOG_INFO << "[SERVER] 已关闭 - 名称: " << name_ << ", 监听地址: " << ipPort_;
     DLOG_INFO << "TcpServer 析构函数完成 - 名称: " << name_;
+}
+
+void TcpServer::enableSSL(const std::string &certPath, const std::string &keyPath)
+{
+    DLOG_INFO << "[TcpServer] 启用 SSL/TLS. 证书路径: " << certPath;
+    sslContext_ = std::make_unique<SSLContext>(certPath, keyPath);
 }
 
 void TcpServer::setThreadNum(int numThreads)
@@ -107,8 +115,7 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
     }
     InetAddress localAddr(local);
 
-    // 创建 TcpConnection 对象，并传入 networkConfig_
-    TcpConnectionPtr conn(new TcpConnection(ioLoop, connName, sockfd, localAddr, peerAddr, networkConfig_));
+    TcpConnectionPtr conn(new TcpConnection(ioLoop, connName, sockfd, localAddr, peerAddr, networkConfig_, sslContext_.get()));
 
     connections_[connName] = conn;
     conn->setConnectionCallback(connectionCallback_);

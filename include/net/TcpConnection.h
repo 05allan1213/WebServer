@@ -12,11 +12,13 @@
 #include "base/noncopyable.h"
 #include "net/TimerId.h"
 #include "net/NetworkConfig.h"
+#include <openssl/ssl.h>
 
 class Channel;
 class EventLoop;
 class Socket;
 class NetworkConfig;
+class SSLContext;
 
 /**
  * @brief TCP连接类,代表一个TCP连接
@@ -32,10 +34,11 @@ public:
      * @param localAddr 本地地址
      * @param peerAddr 对端地址
      * @param config 网络配置对象的共享指针
+     * @param sslContext SSL上下文，如果为nullptr则为普通TCP连接
      */
     TcpConnection(EventLoop *loop, const std::string &nameArg, int sockfd,
                   const InetAddress &localAddr, const InetAddress &peerAddr,
-                  std::shared_ptr<NetworkConfig> config);
+                  std::shared_ptr<NetworkConfig> config, SSLContext *sslContext);
 
     /**
      * @brief 析构函数
@@ -162,10 +165,11 @@ private:
      */
     enum State // 连接状态枚举
     {
-        kDisconnected, // 已断开连接
-        kConnecting,   // 正在连接中
-        kConnected,    // 已连接
-        kDisconnecting // 正在断开连接
+        kDisconnected,  // 已断开连接
+        kConnecting,    // 正在连接中
+        kConnected,     // 已连接
+        kDisconnecting, // 正在断开连接
+        KHandshaking    // SSL握手状态
     };
 
     /**
@@ -226,6 +230,11 @@ private:
      */
     void shutdownInLoop();
 
+    // SSL/TLS 相关
+    void handleSSLHandshake();
+    ssize_t sslRead(int *saveErrno);
+    ssize_t sslWrite(const void *data, size_t len, int *saveErrno);
+
 private:
     EventLoop *loop_;        // 所属的EventLoop,通常是subLoop
     const std::string name_; // 连接名称,用于标识和日志
@@ -253,4 +262,7 @@ private:
     std::any context_;
 
     std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置对象的共享指针
+
+    // SSL/TLS 相关
+    std::unique_ptr<SSL, decltype(&SSL_free)> ssl_; // SSL对象
 };

@@ -11,4 +11,4 @@ target_include_directories(net PUBLIC ${CMAKE_SOURCE_DIR}/include)
 find_package(yaml-cpp REQUIRED)
 
 # 添加依赖
-target_link_libraries(net PRIVATE base log yaml-cpp::yaml-cpp)
+target_link_libraries(net PRIVATE base log ssl yaml-cpp::yaml-cpp)

@@ -16,9 +16,13 @@ log:
 
 network:
   ip: 127.0.0.1             # 服务器监听IP地址
-  port: 8080                # 服务器监听端口
+  port: 8443                # 服务器监听端口
   epoll_mode: "LT"          # epoll触发模式,可选 "ET" 或 "LT"
   idle_timeout: 30          # 空闲连接超时时间,单位秒
+  ssl:
+    enable: true # 是否启用HTTPS
+    cert_path: "certs/server.crt" # 服务器证书路径
+    key_path: "certs/server.key"  # 服务器私钥路径
   thread_pool:
     thread_num: 3           # 线程池线程数量
     queue_size: 1000        # 线程池任务队列大小
