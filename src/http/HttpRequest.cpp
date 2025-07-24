@@ -1,6 +1,4 @@
 #include "http/HttpRequest.h"
-#include <algorithm>
-#include <cctype>
 #include "log/Log.h"
 
 HttpRequest::HttpRequest() : method_(Method::kInvalid), version_(Version::kUnknown), user_id_(-1) {}
@@ -60,6 +58,10 @@ void HttpRequest::addHeader(const char *start, const char *colon, const char *en
     // Trim leading and trailing spaces from field
     field.erase(0, field.find_first_not_of(" \t"));
     field.erase(field.find_last_not_of(" \t") + 1);
+    // **
+    // * 将header的key转为小写，实现大小写不敏感
+    // **
+    std::transform(field.begin(), field.end(), field.begin(), ::tolower);
 
     // Trim leading spaces from value
     ++colon;
@@ -77,7 +79,12 @@ void HttpRequest::addHeader(const char *start, const char *colon, const char *en
 
 std::optional<std::string> HttpRequest::getHeader(const std::string &field) const
 {
-    auto it = headers_.find(field);
+    std::string lower_field = field;
+    // **
+    // * 将要查找的key也转为小写
+    // **
+    std::transform(lower_field.begin(), lower_field.end(), lower_field.begin(), ::tolower);
+    auto it = headers_.find(lower_field);
     if (it != headers_.end())
     {
         return it->second;
@@ -112,4 +119,16 @@ void HttpRequest::swap(HttpRequest &that)
     query_.swap(that.query_);
     body_.swap(that.body_);
     headers_.swap(that.headers_);
+    params_.swap(that.params_);
+    std::swap(user_id_, that.user_id_);
+}
+
+std::optional<std::string> HttpRequest::getParam(const std::string &key) const
+{
+    auto it = params_.find(key);
+    if (it != params_.end())
+    {
+        return it->second;
+    }
+    return std::nullopt;
 }

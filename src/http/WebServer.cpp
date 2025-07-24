@@ -135,6 +135,18 @@ void WebServer::registerRoutes()
     router_.post("/api/register", userRegister);
     router_.post("/api/login", userLogin);
 
+    // --- 带参数的路由示例 ---
+    router_.get("/api/users/:id/posts/:postId", [](const HttpRequest &req, HttpResponse *resp)
+                {
+                    json result;
+                    result["message"] = "Advanced routing works!";
+                    result["userId"] = req.getParam("id").value_or("not found");
+                    result["postId"] = req.getParam("postId").value_or("not found");
+
+                    resp->setStatusCode(HttpResponse::k200Ok);
+                    resp->setContentType("application/json");
+                    resp->setBody(result.dump(4)); });
+
     // --- 受保护的 API (需要认证) ---
     // 请求会先通过 loggingMiddleware，然后通过 authMiddleware，最后到达业务处理器。
     router_.get("/api/profile", authMiddleware, [](const HttpRequest &req, HttpResponse *resp)
@@ -183,8 +195,10 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
     const char *methodStr = req.getMethodString();
     const std::string &path = req.getPath();
     DLOG_INFO << "[WebServer] 收到HTTP请求: " << methodStr << " " << path;
-    RouteMatchResult result = router_.match(methodStr, path);
 
+    // 匹配路由
+    RouteMatchResult result = router_.match(methodStr, path);
+    // 如果未匹配到，则返回404
     if (!result.matched || result.chain.empty())
     {
         resp->setStatusCode(HttpResponse::k404NotFound);
@@ -194,6 +208,8 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
         DLOG_WARN << "[WebServer] 404 Not Found: " << path;
         return;
     }
+    // 将匹配到的路径参数设置到请求对象中
+    const_cast<HttpRequest &>(req).setParams(result.params);
 
     // --- 执行中间件链 ---
     size_t index = 0;

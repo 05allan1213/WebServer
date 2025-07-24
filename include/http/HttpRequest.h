@@ -3,6 +3,8 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
+#include <algorithm> // for std::transform
+#include <cctype>    // for ::tolower
 
 /**
  * @brief HTTP请求对象,封装请求行、头部、消息体等信息
@@ -96,7 +98,7 @@ public:
     Version getVersion() const { return version_; }
 
     /**
-     * @brief 添加请求头部
+     * @brief 添加请求头部 (大小写不敏感)
      * @param start 头部名起始指针
      * @param colon 冒号位置指针
      * @param end   头部值结束指针
@@ -104,7 +106,7 @@ public:
     void addHeader(const char *start, const char *colon, const char *end);
 
     /**
-     * @brief 获取指定头部
+     * @brief 获取指定头部 (大小写不敏感)
      * @param key 头部名
      * @return 可选值,存在则为头部值
      */
@@ -143,12 +145,26 @@ public:
      */
     int getUserId() const { return user_id_; }
 
+    /**
+     * @brief 设置从URL路径中提取的参数
+     * @param params 参数map
+     */
+    void setParams(const std::unordered_map<std::string, std::string> &params) { params_ = params; }
+
+    /**
+     * @brief 获取从URL路径中提取的单个参数
+     * @param key 参数名
+     * @return 参数值的 optional 封装
+     */
+    std::optional<std::string> getParam(const std::string &key) const;
+
 private:
     Method method_;                                        // 请求方法
-    Version version_;                                      // 协议版本`
+    Version version_;                                      // 协议版本
     std::string path_;                                     // 请求路径
     std::string query_;                                    // 查询参数
-    std::unordered_map<std::string, std::string> headers_; // 头部字段
+    std::unordered_map<std::string, std::string> headers_; // 头部字段 (key统一为小写)
     std::string body_;                                     // 消息体
+    std::unordered_map<std::string, std::string> params_;  // URL路径参数
     int user_id_ = -1;                                     // 认证用户ID，-1表示未认证
 };

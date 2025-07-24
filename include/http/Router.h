@@ -17,6 +17,7 @@
 struct RouteNode
 {
     std::unordered_map<std::string, MiddlewareChain> handlers; // key: HTTP Method
+    std::vector<std::string> paramNames;                       // 按顺序存储参数名, e.g., for /users/:id, this stores {"id"}
 };
 
 /**
@@ -25,8 +26,8 @@ struct RouteNode
 struct RouteMatchResult
 {
     bool matched = false;
-    MiddlewareChain chain; // 包含组合后链的副本
-    std::unordered_map<std::string, std::string> params;
+    MiddlewareChain chain;                               // 包含组合后链的副本
+    std::unordered_map<std::string, std::string> params; // 提取出的路径参数
 };
 
 /**
@@ -71,6 +72,7 @@ private:
 
     MiddlewareChain globalMiddlewares_;
     std::unordered_map<std::string, std::unique_ptr<RouteNode>> routes_;
+    // 将正则表达式路由的结构体修改为包含 RouteNode 指针
     std::vector<std::pair<std::regex, RouteNode *>> regexRoutes_;
 };
 
@@ -82,25 +84,40 @@ void Router::add(const std::string &method, const std::string &path, Handlers...
     MiddlewareChain chain;
     buildChain(chain, handlers...);
 
-    if (routes_.find(path) == routes_.end())
-    {
-        routes_[path] = std::make_unique<RouteNode>();
-    }
-    routes_[path]->handlers[method] = std::move(chain);
+    std::unique_ptr<RouteNode> node = std::make_unique<RouteNode>();
+    node->handlers[method] = std::move(chain);
 
+    // 检查路径是否包含参数
     if (path.find(':') != std::string::npos || path.find('*') != std::string::npos)
     {
+        std::string regexPath = path;
+        std::regex paramRegex(":([a-zA-Z0-9_]+)");
+        auto words_begin = std::sregex_iterator(path.begin(), path.end(), paramRegex);
+        auto words_end = std::sregex_iterator();
+
+        for (std::sregex_iterator i = words_begin; i != words_end; ++i)
+        {
+            node->paramNames.push_back((*i)[1].str());
+        }
+
+        regexPath = std::regex_replace(regexPath, paramRegex, "([^/]+)");
+        regexPath = std::regex_replace(regexPath, std::regex("\\*"), ".*");
+
         try
         {
-            std::string regexPath = path;
-            regexPath = std::regex_replace(regexPath, std::regex(":([a-zA-Z0-9_]+)"), "([a-zA-Z0-9_]+)");
-            regexPath = std::regex_replace(regexPath, std::regex("\\*"), ".*");
-            regexRoutes_.emplace_back(std::regex("^" + regexPath + "$"), routes_[path].get());
+            // 将节点的所有权移到 routes_ map 中，并让 regexRoutes_ 持有裸指针
+            RouteNode *rawNodePtr = node.get();
+            routes_[path] = std::move(node);
+            regexRoutes_.emplace_back(std::regex("^" + regexPath + "$"), rawNodePtr);
         }
         catch (const std::regex_error &e)
         {
             throw std::runtime_error("Invalid regex in path: " + path);
         }
+    }
+    else // 精确匹配路径
+    {
+        routes_[path] = std::move(node);
     }
 }
 

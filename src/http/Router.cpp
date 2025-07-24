@@ -1,6 +1,5 @@
 #include "http/Router.h"
 #include "log/Log.h"
-#include <regex>
 
 Router::Router() {}
 
@@ -37,7 +36,17 @@ RouteMatchResult Router::match(const std::string &method, const std::string &pat
             if (std::regex_match(path, match, pair.first))
             {
                 node = pair.second;
-                // TODO: 参数提取逻辑
+                // 提取路径参数
+                if (match.size() > 1)
+                {
+                    for (size_t i = 1; i < match.size(); ++i)
+                    {
+                        if (i - 1 < node->paramNames.size())
+                        {
+                            result.params[node->paramNames[i - 1]] = match[i].str();
+                        }
+                    }
+                }
                 break;
             }
         }
