@@ -13,5 +13,8 @@ target_include_directories(http PUBLIC ${CMAKE_SOURCE_DIR}/include)
 # 添加 yaml-cpp 依赖
 find_package(yaml-cpp REQUIRED)
 
+# 添加 OpenSSL 依赖
+find_package(OpenSSL REQUIRED)
+
 # 添加依赖
-target_link_libraries(http PRIVATE base log net yaml-cpp::yaml-cpp)
+target_link_libraries(http PRIVATE base log net yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)

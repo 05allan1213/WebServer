@@ -41,6 +41,16 @@ static std::string readFileOrDefault(const std::string &path, const std::string 
  */
 bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const std::string &baseDir)
 {
+    // 0. 协议完备性：只允许 GET 和 HEAD 方法
+    if (req.getMethod() != HttpRequest::Method::kGet && req.getMethod() != HttpRequest::Method::kHead)
+    {
+        resp->setStatusCode(HttpResponse::k400BadRequest);
+        resp->setStatusMessage("Method Not Allowed");
+        resp->setHeader("Allow", "GET, HEAD");
+        resp->setBody("<html><body><h1>405 Method Not Allowed</h1></body></html>");
+        return true;
+    }
+
     // 1. 路径映射，将URL路径映射到本地文件
     std::string urlPath = req.getPath();
     if (urlPath == "/")
@@ -116,8 +126,37 @@ bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const
     DLOG_INFO << "[StaticFileHandler] 成功返回文件: " << filePath << ", MIME: " << mime << ", 大小: " << body.size();
     resp->setStatusCode(HttpResponse::k200Ok);
     resp->setStatusMessage("OK");
-    resp->setContentType(mime);
-    resp->setBody(body); // <-- 读取文件内容到 body
-    // 注意：传统方式不再需要手动设置 Content-Length，appendToBuffer 会自动计算
+    resp->setContentType(getMimeType(filePath));
+    resp->setContentLength(st.st_size);
+
+    // --- 协议完备性：如果是 HEAD 请求，则不发送 body ---
+    if (req.getMethod() == HttpRequest::Method::kGet)
+    {
+        if (st.st_size > ZERO_COPY_THRESHOLD)
+        {
+            DLOG_INFO << "[StaticFileHandler] 文件 " << filePath << " 大小超过阈值，使用零拷贝";
+            resp->setFilePath(filePath);
+        }
+        else
+        {
+            std::ifstream ifs(filePath, std::ios::binary);
+            if (ifs)
+            {
+                resp->setBody(std::string((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>()));
+            }
+            else
+            {
+                // 文件打开失败
+                std::string errorPath = baseDir + "/500.html";
+                std::string body = readFileOrDefault(errorPath, "<html><body><h1>500 Internal Server Error</h1></body></html>");
+                resp->setStatusCode(HttpResponse::k500InternalServerError);
+                resp->setStatusMessage("Internal Server Error");
+                resp->setContentType("text/html");
+                resp->setBody(body);
+            }
+        }
+    }
+    // 对于 HEAD 请求，我们已经设置了所有正确的头部，只需返回即可，无需设置 body。
+
     return true;
 }

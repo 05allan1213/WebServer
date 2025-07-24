@@ -14,8 +14,36 @@
 #include <sstream>
 #include <nlohmann/json.hpp>
 #include <jwt-cpp/jwt.h>
+#include <openssl/sha.h>
+#include <iomanip>
 
 using json = nlohmann::json;
+
+// --- 密码哈希辅助函数 ---
+/**
+ * @brief 计算字符串的SHA-256哈希值
+ * @param str 输入字符串
+ * @return 16进制表示的哈希值
+ */
+std::string sha256(const std::string &str)
+{
+    EVP_MD_CTX *context = EVP_MD_CTX_new();
+    const EVP_MD *md = EVP_sha256();
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int lengthOfHash = 0;
+
+    EVP_DigestInit_ex(context, md, NULL);
+    EVP_DigestUpdate(context, str.c_str(), str.size());
+    EVP_DigestFinal_ex(context, hash, &lengthOfHash);
+    EVP_MD_CTX_free(context);
+
+    std::stringstream ss;
+    for (unsigned int i = 0; i < lengthOfHash; i++)
+    {
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
+    }
+    return ss.str();
+}
 
 // --- 业务处理函数 ---
 void userLogin(const HttpRequest &req, HttpResponse *resp);
@@ -281,13 +309,10 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
     DLOG_INFO << "[WebServer] 用户注册请求: " << req.getBody();
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
-        DLOG_WARN << "[WebServer] 非POST方法注册请求";
         resp->setStatusCode(HttpResponse::k400BadRequest);
-        resp->setStatusMessage("Bad Request");
-        resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Method Not Allowed"})");
         return;
     }
+
     std::string username, password;
     try
     {
@@ -297,41 +322,39 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
     }
     catch (json::exception &e)
     {
-        DLOG_WARN << "[WebServer] 注册JSON解析失败: " << e.what();
         resp->setStatusCode(HttpResponse::k400BadRequest);
-        resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
+        resp->setBody(R"({"status":"error", "message":"请求格式错误或缺少字段"})");
         return;
     }
+
+    std::string hashedPassword = sha256(password);
+
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
-        DLOG_ERROR << "[WebServer] 注册时数据库连接获取失败";
         resp->setStatusCode(HttpResponse::k500InternalServerError);
-        resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
+        resp->setBody(R"({"status":"error", "message":"服务器内部错误，无法连接数据库"})");
         return;
     }
-    char sql[256] = {0};
-    snprintf(sql, sizeof(sql), "INSERT INTO user(username, password) VALUES('%s', '%s')", username.c_str(), password.c_str());
+
+    char sql[512];
+    snprintf(sql, sizeof(sql), "INSERT INTO user(username, password) VALUES('%s', '%s')",
+             username.c_str(), hashedPassword.c_str());
+
     if (!execSQL(conn->m_conn, sql))
     {
-        DLOG_WARN << "[WebServer] 注册失败, 用户名已存在: " << username;
-        resp->setStatusCode(HttpResponse::k400BadRequest);
-        resp->setStatusMessage("Conflict");
+        resp->setStatusCode(HttpResponse::k409Conflict);
         resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Username already exists."})");
+        resp->setBody(R"({"status":"error", "message":"用户名已存在"})");
     }
     else
     {
-        DLOG_INFO << "[WebServer] 用户注册成功: " << username;
-        resp->setStatusCode(HttpResponse::k200Ok);
-        resp->setStatusMessage("Created");
+        resp->setStatusCode(HttpResponse::k201Created);
         resp->setContentType("application/json");
-        resp->setBody(R"({"message":"User registered successfully."})");
+        resp->setBody(R"({"status":"success", "message":"用户注册成功"})");
     }
 }
 
@@ -340,13 +363,10 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
     DLOG_INFO << "[WebServer] 用户登录请求: " << req.getBody();
     if (req.getMethod() != HttpRequest::Method::kPost)
     {
-        DLOG_WARN << "[WebServer] 非POST方法登录请求";
         resp->setStatusCode(HttpResponse::k400BadRequest);
-        resp->setStatusMessage("Bad Request");
-        resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Method Not Allowed"})");
         return;
     }
+
     std::string username, password;
     try
     {
@@ -356,95 +376,79 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
     }
     catch (json::exception &e)
     {
-        DLOG_WARN << "[WebServer] 登录JSON解析失败: " << e.what();
         resp->setStatusCode(HttpResponse::k400BadRequest);
-        resp->setStatusMessage("Bad Request");
         resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Invalid JSON format or missing fields."})");
+        resp->setBody(R"({"status":"error", "message":"请求格式错误或缺少字段"})");
         return;
     }
+
+    std::string hashedPassword = sha256(password);
+
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
-        DLOG_ERROR << "[WebServer] 登录时数据库连接获取失败";
         resp->setStatusCode(HttpResponse::k500InternalServerError);
-        resp->setStatusMessage("Internal Error");
-        resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Server internal error: cannot connect to DB."})");
         return;
     }
-    char sql[256] = {0};
+
+    char sql[256];
     snprintf(sql, sizeof(sql), "SELECT id, password FROM user WHERE username='%s'", username.c_str());
-    if (execSQL(conn->m_conn, sql))
+
+    if (mysql_query(conn->m_conn, sql) == 0)
     {
         MYSQL_RES *res = mysql_store_result(conn->m_conn);
-        if (res)
+        if (res && mysql_num_rows(res) > 0)
         {
             MYSQL_ROW row = mysql_fetch_row(res);
-            if (!row)
-            {
-                DLOG_WARN << "[WebServer] 登录失败, 用户未注册: " << username;
-                resp->setStatusCode(HttpResponse::k400BadRequest);
-                resp->setStatusMessage("Unauthorized");
-                resp->setContentType("application/json");
-                resp->setBody(R"({"error":"未注册请先注册"})");
-            }
-            else if (password == row[1])
+            std::string dbPasswordHash = row[1];
+
+            if (hashedPassword == dbPasswordHash)
             {
                 int user_id = atoi(row[0]);
                 auto baseConfig = ConfigManager::getInstance().getBaseConfig();
                 if (!baseConfig)
                 {
-                    DLOG_ERROR << "[WebServer] 登录时获取JWT配置失败";
                     resp->setStatusCode(HttpResponse::k500InternalServerError);
-                    resp->setStatusMessage("Internal Error");
-                    resp->setContentType("application/json");
-                    resp->setBody(R"({"error":"Server internal error: config error."})");
                     return;
                 }
+
                 std::string secret = baseConfig->getJwtSecret();
                 int expire = baseConfig->getJwtExpireSeconds();
                 std::string issuer = baseConfig->getJwtIssuer();
+
                 auto token = jwt::create()
                                  .set_issuer(issuer)
                                  .set_type("JWS")
                                  .set_payload_claim("user_id", jwt::claim(std::to_string(user_id)))
                                  .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds(expire))
                                  .sign(jwt::algorithm::hs256(secret));
-                json resp_json = {{"token", token}};
-                DLOG_INFO << "[WebServer] 用户登录成功: " << username << ", user_id=" << user_id;
+
+                json resp_json = {{"status", "success"}, {"token", token}};
                 resp->setStatusCode(HttpResponse::k200Ok);
-                resp->setStatusMessage("OK");
                 resp->setContentType("application/json");
                 resp->setBody(resp_json.dump());
             }
             else
             {
-                DLOG_WARN << "[WebServer] 登录失败, 密码错误: " << username;
-                resp->setStatusCode(HttpResponse::k400BadRequest);
-                resp->setStatusMessage("Unauthorized");
+                resp->setStatusCode(HttpResponse::k401Unauthorized);
                 resp->setContentType("application/json");
-                resp->setBody(R"({"error":"用户名或密码错误"})");
+                resp->setBody(R"({"status":"error", "message":"用户名或密码错误"})");
             }
-            mysql_free_result(res);
         }
         else
         {
-            DLOG_WARN << "[WebServer] 登录失败, 用户未注册: " << username;
-            resp->setStatusCode(HttpResponse::k400BadRequest);
-            resp->setStatusMessage("Unauthorized");
+            resp->setStatusCode(HttpResponse::k401Unauthorized);
             resp->setContentType("application/json");
-            resp->setBody(R"({"error":"未注册请先注册"})");
+            resp->setBody(R"({"status":"error", "message":"用户名或密码错误"})");
         }
+        mysql_free_result(res);
     }
     else
     {
-        DLOG_ERROR << "[WebServer] 登录时数据库查询失败: " << username;
         resp->setStatusCode(HttpResponse::k500InternalServerError);
-        resp->setStatusMessage("Internal Error");
         resp->setContentType("application/json");
-        resp->setBody(R"({"error":"Server internal error: query failed."})");
+        resp->setBody(R"({"status":"error", "message":"服务器内部错误"})");
     }
 }
 

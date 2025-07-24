@@ -571,7 +571,7 @@ void LogManager::shutdown()
     // 这个函数确保在程序退出前，异步日志线程被安全地停止和 join
     if (g_asyncLog)
     {
-        LOG_INFO(m_root) << "[LogManager] Shutting down async logging thread...";
+        LOG_INFO(m_root) << "[LogManager] 异步日志已关闭";
         g_asyncLog->stop();
         g_asyncLog.reset(); // 释放资源
     }

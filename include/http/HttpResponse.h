@@ -23,10 +23,13 @@ public:
     {
         kUnknown,                      // 未知状态码
         k200Ok = 200,                  // 成功
+        k201Created = 201,             // 资源创建成功
         k301MovedPermanently = 301,    // 永久重定向
         k400BadRequest = 400,          // 请求错误
+        k401Unauthorized = 401,        // 未认证
         k403Forbidden = 403,           // 禁止访问
         k404NotFound = 404,            // 未找到
+        k409Conflict = 409,            // 资源冲突 (例如，用户名已存在)
         k500InternalServerError = 500, // 服务器错误
     };
 
