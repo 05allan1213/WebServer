@@ -4,6 +4,11 @@ cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 # 设置项目名称和语言
 project(webserver LANGUAGES CXX)
 
+# 默认使用 Debug 模式（除非用户自行设置了）
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+endif()
+
 # --- 编译器设置 ---
 # 设置 C++ 标准为 C++17
 set(CMAKE_CXX_STANDARD 17)

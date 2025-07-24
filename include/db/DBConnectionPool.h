@@ -82,6 +82,8 @@ public:
      */
     void releaseConnection(Connection *conn);
 
+    void shutdown();
+
 private:
     /**
      * @brief 构造函数
@@ -119,6 +121,11 @@ private:
 
     std::atomic<int> m_connectionCount; // 当前已创建的连接总数
     std::atomic<bool> m_isStop;         // 控制后台线程停止的标志
+
+    std::thread m_producerThread; // 生产新连接的线程
+    std::thread m_scannerThread;  // 定时扫描并回收空闲连接的线程
+
+    std::once_flag m_initFlag; // 确保单例实例只被初始化一次
 };
 
 /**

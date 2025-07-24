@@ -79,61 +79,6 @@ public:
     void stop() {}
 };
 
-static std::unique_ptr<WebServer> g_server;
-
-void WebServer::shutdown_handler(int signo)
-{
-    DLOG_INFO << "[WebServer] 收到信号 " << signo << ", 正在优雅关闭...";
-    if (g_server)
-        g_server->stop();
-}
-
-/**
- * @brief 服务器主入口，创建 WebServer 并注册信号处理，自动优雅关闭
- */
-void WebServer::run()
-{
-    try
-    {
-        // 1. 启动最小化的引导日志
-        initDefaultLogger();
-
-        // 2. 初始化配置管理器
-        auto &configMgr = ConfigManager::getInstance();
-        configMgr.load("configs/config.yml", 5);
-
-        // 3. 关键检查：确认核心配置是否加载成功
-        if (!configMgr.getNetworkConfig() || !configMgr.getLogConfig() ||
-            !configMgr.getDBConfig() || !configMgr.getBaseConfig())
-        {
-
-            DLOG_FATAL << "[WebServer] 核心配置加载失败，服务器无法启动。请检查配置文件路径和内容。";
-            std::cerr << "[WebServer] 核心配置加载失败，服务器无法启动。请检查配置文件路径和内容。" << std::endl;
-            exit(1);
-        }
-
-        // 4. 初始化内存池 (在加载配置之后，创建任何Buffer之前)
-        MemoryPool::getInstance();
-
-        // 5. 根据加载的配置，重新初始化功能完备的日志系统
-        initLogSystem();
-
-        // 6. 创建并运行WebServer
-        g_server = std::make_unique<WebServer>(configMgr);
-        std::signal(SIGINT, shutdown_handler);
-        std::signal(SIGTERM, shutdown_handler);
-
-        DLOG_INFO << "[WebServer] 准备启动服务...";
-        g_server->start();
-    }
-    catch (const std::exception &e)
-    {
-        DLOG_FATAL << "[WebServer] 启动时发生未捕获异常: " << e.what();
-        std::cerr << "[WebServer] 启动时发生未捕获异常: " << e.what() << std::endl;
-        exit(1);
-    }
-}
-
 /**
  * @brief 构造函数，完成所有模块的初始化
  * @param configManager 配置管理器的引用
@@ -171,7 +116,7 @@ WebServer::WebServer(ConfigManager &configManager)
 
 WebServer::~WebServer()
 {
-    stop();
+    DLOG_INFO << "[WebServer] WebServer 析构，资源将按RAII规则自动清理。";
 }
 
 /**
@@ -511,5 +456,8 @@ void WebServer::stop()
         return;
     DLOG_INFO << "[WebServer] 停止中...";
     businessPool_->stop();
-    mainLoop_->quit();
+    if (!mainLoop_->isInLoopThread())
+    {
+        mainLoop_->quit();
+    }
 }

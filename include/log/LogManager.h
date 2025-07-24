@@ -92,6 +92,11 @@ public:
      */
     void onConfigUpdate();
 
+    /**
+     * @brief 关闭日志系统，特别是停止异步日志线程
+     */
+    void shutdown();
+
 private:
     /**
      * @brief 私有构造函数,创建默认的root日志器

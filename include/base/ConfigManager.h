@@ -8,6 +8,8 @@
 #include <functional>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include <filesystem>
 
 // 前向声明，解耦头文件依赖
@@ -87,6 +89,8 @@ public:
      */
     void unregisterUpdateCallback(const std::string &name);
 
+    void shutdown();
+
 private:
     /**
      * @brief 私有构造函数，确保单例
@@ -128,6 +132,12 @@ private:
     // 热重载相关
     std::atomic<bool> hotReloading_ = false; /// 是否启用热重载
     std::thread watcherThread_;              /// 配置文件监控线程
+
+    std::once_flag m_watcherFlag; // 确保单例实例只被初始化一次
+
+    // 监控线程的互斥锁和条件变量
+    std::mutex m_watcherMutex;             // 监控线程的互斥锁
+    std::condition_variable m_watcherCond; // 监控线程的条件变量
 
     // 配置更新回调相关
     std::mutex callbackMutex_;

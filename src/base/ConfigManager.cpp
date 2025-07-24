@@ -16,10 +16,9 @@ ConfigManager &ConfigManager::getInstance()
 
 ConfigManager::~ConfigManager()
 {
-    hotReloading_ = false;
-    if (watcherThread_.joinable())
+    if (hotReloading_)
     {
-        watcherThread_.join();
+        shutdown();
     }
 }
 
@@ -33,14 +32,16 @@ void ConfigManager::load(const std::string &filename, unsigned int hotReloadInte
     else
     {
         DLOG_ERROR << "[ConfigManager] 配置文件 '" << filename << "' 加载失败";
-        // 即使加载失败，也继续使用默认构造的配置对象，以增强鲁棒性
     }
 
     if (hotReloadIntervalSeconds > 0)
     {
-        hotReloading_ = true;
-        watcherThread_ = std::thread(&ConfigManager::watchConfigFile, this, hotReloadIntervalSeconds);
-        DLOG_INFO << "[ConfigManager] 启动热重载监控, 间隔: " << hotReloadIntervalSeconds << "s";
+        // 使用 call_once 来确保监控线程只被启动一次
+        std::call_once(m_watcherFlag, [&]()
+                       {
+            hotReloading_ = true;
+            watcherThread_ = std::thread(&ConfigManager::watchConfigFile, this, hotReloadIntervalSeconds);
+            DLOG_INFO << "[ConfigManager] 启动热重载监控, 间隔: " << hotReloadIntervalSeconds << "s"; });
     }
 }
 
@@ -82,7 +83,16 @@ void ConfigManager::watchConfigFile(unsigned int intervalSeconds)
 {
     while (hotReloading_)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
+        std::unique_lock<std::mutex> lock(m_watcherMutex);
+        // 它会等待 intervalSeconds 秒，或者被提前唤醒
+        m_watcherCond.wait_for(lock, std::chrono::seconds(intervalSeconds));
+
+        if (!hotReloading_) // 检查是否是被 shutdown 唤醒的
+        {
+            break;
+        }
+
+        // 如果是超时唤醒，则执行文件检查逻辑
         try
         {
             if (!std::filesystem::exists(configFilename_))
@@ -122,6 +132,17 @@ void ConfigManager::unregisterUpdateCallback(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(callbackMutex_);
     updateCallbacks_.erase(name);
+}
+
+void ConfigManager::shutdown()
+{
+    hotReloading_ = false;
+    m_watcherCond.notify_all();
+    if (watcherThread_.joinable())
+    {
+        watcherThread_.join();
+        std::cout << "[ConfigManager] 监控线程已停止。" << std::endl;
+    }
 }
 
 void ConfigManager::notifyUpdate()

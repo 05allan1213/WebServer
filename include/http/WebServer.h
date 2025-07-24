@@ -42,15 +42,6 @@ public:
      */
     void stop();
     /**
-     * @brief 静态入口，创建 WebServer 并注册信号处理，自动优雅关闭
-     */
-    static void run();
-    /**
-     * @brief 信号处理函数，收到 SIGINT/SIGTERM 时优雅关闭服务器
-     * @param signo 信号编号
-     */
-    static void shutdown_handler(int signo);
-    /**
      * @brief 获取路由器的引用，用于注册路由和中间件
      * @return Router&
      */
