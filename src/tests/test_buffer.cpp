@@ -1,16 +1,5 @@
 #include <gtest/gtest.h>
 #include "base/Buffer.h"
-#include "base/BaseConfig.h"
-
-struct BufferTestEnv : public ::testing::Environment
-{
-    void SetUp() override
-    {
-        BaseConfig::getInstance().load("configs/config.yml");
-    }
-};
-
-::testing::Environment *const buffer_env = ::testing::AddGlobalTestEnvironment(new BufferTestEnv);
 
 TEST(BufferTest, BasicReadWrite)
 {
@@ -51,10 +40,10 @@ TEST(BufferTest, RetrieveAsString)
     EXPECT_EQ(std::string(buf.peek(), buf.readableBytes()), "456");
 }
 
-TEST(BufferTest, EnsureWriteableBytes)
+TEST(BufferTest, EnsureWritableBytes)
 {
     Buffer buf;
     size_t oldWritable = buf.writableBytes();
-    buf.ensureWriteableBytes(2048);
+    buf.ensureWritableBytes(2048);
     EXPECT_GE(buf.writableBytes(), 2048);
 }
