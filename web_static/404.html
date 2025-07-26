@@ -1,24 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-    <title>404 Not Found</title>
-    <link rel="stylesheet" href="/style.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 Not Found - WebServer Pro</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-    <div class="error-container">
-        <div class="error-page">
-            <div class="error-code">404</div>
-            <h1>页面未找到</h1>
-            <p>抱歉，您访问的页面不存在或已被移除。</p>
-            <div class="error-actions">
-                <a href="/index.html" class="btn">返回首页</a>
-                <a href="/contact.html" class="btn btn-outline">联系我</a>
+    <div class="app-layout">
+        <main class="main-content" style="margin-left: 0; width: 100vw;">
+            <div class="error-page-container">
+                <svg class="graphic" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(300, 200)">
+                        <path d="M150,0 A150,150 0 1,1 -150,0 A150,150 0 1,1 150,0" fill="none" stroke="#3a404d"
+                            stroke-width="8" />
+                        <text y="20" font-size="100" fill="#e2e2e2" text-anchor="middle"
+                            font-family="var(--font-family)" font-weight="bold">404</text>
+                        <g transform="translate(-50, -80)">
+                            <path d="M10,20 Q15,0 20,20" stroke="#a0a0a0" stroke-width="6" fill="none" />
+                        </g>
+                        <g transform="translate(30, -80)">
+                            <path d="M10,20 Q15,0 20,20" stroke="#a0a0a0" stroke-width="6" fill="none" />
+                        </g>
+                        <path d="M-40,40 Q0,60 40,40" stroke="#a0a0a0" stroke-width="6" fill="none" />
+                    </g>
+                </svg>
+                <h2>页面迷失在代码的海洋中</h2>
+                <p>我们似乎找不到您要寻找的页面。也许它被一个丢失的分号带走了，或者正在遥远的服务器上度假。</p>
+                <a href="/" class="btn">返回安全的港湾</a>
             </div>
-        </div>
+        </main>
     </div>
 </body>
 

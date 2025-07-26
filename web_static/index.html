@@ -1,56 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-    <title>首页</title>
-    <link rel="stylesheet" href="/style.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebServer Pro | C++ 高性能网络库</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 </head>
 
 <body>
-    <header>
-        <h1>WebServer</h1>
-        <p>高性能C++服务器演示</p>
-    </header>
-
-    <div class="container">
-        <nav id="mainNav">
-            <a href="/index.html">首页</a>
-            <a href="/about.html">关于我</a>
-            <a href="/contact.html">联系我</a>
-            <span id="authArea" style="float:right;"></span>
-        </nav>
-
-        <div class="card">
-            <h2>欢迎访问</h2>
-            <p>这是一个基于C++开发的高性能Web服务器，支持静态资源访问、HTTP请求处理和多线程并发。</p>
-            <p>本项目采用现代C++开发，包含完整的日志系统、网络库和HTTP解析器。</p>
-            <a href="/about.html" class="btn">了解更多</a>
-        </div>
-
-        <div class="flex-container">
-            <div class="card flex-item">
-                <h3>高性能</h3>
-                <p>采用Reactor模式设计，支持高并发请求处理，性能出色。</p>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="#/" class="logo">WebServer Pro</a>
             </div>
-            <div class="card flex-item">
-                <h3>可扩展</h3>
-                <p>模块化设计，易于扩展，可根据需求添加新功能。</p>
+            <nav class="sidebar-nav">
+                <a href="#/home" data-route="/home"><i class="icon-home"></i><span>项目主页</span></a>
+                <a href="#/websocket" data-route="/websocket"><i class="icon-socket"></i><span>WebSocket 测试</span></a>
+                <a href="#/about" data-route="/about"><i class="icon-about"></i><span>关于项目</span></a>
+            </nav>
+            <div class="sidebar-footer" id="auth-area">
             </div>
-            <div class="card flex-item">
-                <h3>稳定可靠</h3>
-                <p>完善的错误处理和日志系统，保证服务稳定运行。</p>
-            </div>
-        </div>
+        </aside>
+        <main id="app-container" class="main-content">
+        </main>
     </div>
-
-    <footer>
-        <div class="container">
-            <p>© 2023 WebServer 项目演示</p>
-        </div>
-    </footer>
-    <script src="/auth.js"></script>
+    <script src="/app.js"></script>
 </body>
 
 </html>

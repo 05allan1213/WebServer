@@ -1,24 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-    <title>500 Internal Server Error</title>
-    <link rel="stylesheet" href="/style.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 Internal Server Error - WebServer Pro</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-    <div class="error-container">
-        <div class="error-page">
-            <div class="error-code">500</div>
-            <h1>服务器内部错误</h1>
-            <p>抱歉，服务器遇到了一个内部错误。我的工程师已经收到通知，正在积极修复。</p>
-            <div class="error-actions">
-                <a href="/index.html" class="btn">返回首页</a>
-                <a href="/contact.html" class="btn btn-outline">联系我</a>
+    <div class="app-layout">
+        <main class="main-content" style="margin-left: 0; width: 100vw;">
+            <div class="error-page-container">
+                <svg class="graphic" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(300, 200) rotate(15)">
+                        <path d="M-60,0 L-40,-80 L40,-80 L60,0 L40,80 L-40,80 Z" fill="#3a404d" />
+                        <path d="M-40,-70 L-25,-50 L-10,-70 L-25,-90 Z" fill="#e2e2e2" />
+                        <path d="M10,-70 L25,-50 L40,-70 L25,-90 Z" fill="#e2e2e2" />
+                        <circle cx="-25" cy="0" r="10" fill="#e2e2e2" />
+                        <circle cx="25" cy="0" r="10" fill="#e2e2e2" />
+                        <path d="M-20,40 L20,40" stroke="#e2e2e2" stroke-width="8" fill="none" />
+                    </g>
+                </svg>
+                <h1>500</h1>
+                <h2>服务器内部错误</h2>
+                <p>服务器遇到了一些技术问题，我们的工程师正在紧急修复。请稍后再试。</p>
+                <a href="/" class="btn">返回主页</a>
             </div>
-        </div>
+        </main>
     </div>
 </body>
 

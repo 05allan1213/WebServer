@@ -1,24 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-    <title>403 Forbidden</title>
-    <link rel="stylesheet" href="/style.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 Forbidden - WebServer Pro</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-    <div class="error-container">
-        <div class="error-page">
-            <div class="error-code">403</div>
-            <h1>访问被拒绝</h1>
-            <p>抱歉，您没有权限访问该资源。请确认您的访问权限或联系管理员。</p>
-            <div class="error-actions">
-                <a href="/index.html" class="btn">返回首页</a>
-                <a href="/contact.html" class="btn btn-outline">联系我</a>
+    <div class="app-layout">
+        <main class="main-content" style="margin-left: 0; width: 100vw;">
+            <div class="error-page-container">
+                <svg class="graphic" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(300, 200)">
+                        <circle cx="0" cy="0" r="150" fill="none" stroke="#3a404d" stroke-width="8" />
+                        <line x1="-60" y1="-60" x2="60" y2="60" stroke="#e2e2e2" stroke-width="12" />
+                        <line x1="-60" y1="60" x2="60" y2="-60" stroke="#e2e2e2" stroke-width="12" />
+                    </g>
+                </svg>
+                <h1>403</h1>
+                <h2>访问被拒绝</h2>
+                <p>抱歉，您没有访问此资源的权限。请检查您的凭证或联系系统管理员。</p>
+                <a href="/" class="btn">返回主页</a>
             </div>
-        </div>
+        </main>
     </div>
 </body>
 
