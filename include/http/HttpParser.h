@@ -61,6 +61,12 @@ public:
      */
     const HttpRequest &request() const { return request_; }
 
+    /**
+     * @brief 获取解析得到的HttpRequest对象
+     * @return 引用,包含请求所有信息
+     */
+    HttpRequest *getMutableRequest() { return &request_; }
+
 private:
     /**
      * @brief 解析请求行

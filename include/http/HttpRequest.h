@@ -3,8 +3,9 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
-#include <algorithm> // for std::transform
-#include <cctype>    // for ::tolower
+#include <algorithm>
+#include <cctype>
+#include <any>
 
 /**
  * @brief HTTP请求对象,封装请求行、头部、消息体等信息
@@ -158,6 +159,18 @@ public:
      */
     std::optional<std::string> getParam(const std::string &key) const;
 
+    /**
+     * @brief 设置上下文
+     * @param context 上下文
+     */
+    void setContext(const std::any &context) { context_ = context; }
+
+    /**
+     * @brief 获取上下文
+     * @return 上下文
+     */
+    const std::any &getContext() const { return context_; }
+
 private:
     Method method_;                                        // 请求方法
     Version version_;                                      // 协议版本
@@ -167,4 +180,5 @@ private:
     std::string body_;                                     // 消息体
     std::unordered_map<std::string, std::string> params_;  // URL路径参数
     int user_id_ = -1;                                     // 认证用户ID，-1表示未认证
+    std::any context_;                                     // 上下文
 };

@@ -121,6 +121,7 @@ void HttpRequest::swap(HttpRequest &that)
     headers_.swap(that.headers_);
     params_.swap(that.params_);
     std::swap(user_id_, that.user_id_);
+    std::swap(context_, that.context_);
 }
 
 std::optional<std::string> HttpRequest::getParam(const std::string &key) const

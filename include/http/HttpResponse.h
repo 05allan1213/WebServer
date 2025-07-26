@@ -22,6 +22,7 @@ public:
     enum HttpStatusCode
     {
         kUnknown,                      // 未知状态码
+        k101SwitchingProtocols = 101,  // 协议切换
         k200Ok = 200,                  // 成功
         k201Created = 201,             // 资源创建成功
         k301MovedPermanently = 301,    // 永久重定向

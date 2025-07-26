@@ -47,17 +47,22 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
     else
     {
         DLOG_INFO << "连接断开: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
-        auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getContext());
-        if (context && context->state == SocketContext::WEBSOCKET && context->wsHandler)
+
+        if (conn->getMutableContext()->has_value())
         {
-            context->wsHandler->onClose(conn);
+            auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
+            // 如果是WebSocket连接，需要通知处理器连接已关闭
+            if (context && context->state == SocketContext::WEBSOCKET && context->wsHandler)
+            {
+                context->wsHandler->onClose(conn);
+            }
         }
     }
 }
 
 void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp recvTime)
 {
-    auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getMutableContext());
+    auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
 
     // 根据上下文的状态，分发到不同的解析器
     if (context->state == SocketContext::HTTP)
@@ -125,11 +130,22 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
         httpCallback_(req, &response);
     }
 
+    // 在发送响应之前，检查是否是WebSocket升级成功的响应
+    if (response.getStatusCode() == HttpResponse::k101SwitchingProtocols)
+    {
+        // 如果是101响应，只发送响应头和必要的空行，然后立即返回
+        // 这样可以防止后续逻辑错误地关闭连接
+        Buffer buf;
+        response.appendToBuffer(&buf);
+        conn->send(buf.retrieveAllAsString());
+        return;
+    }
+
     Buffer buf;
     response.appendToBuffer(&buf);
     conn->send(buf.retrieveAllAsString());
 
-    if (response.getStatusCode() != HttpResponse::k101SwitchingProtocols && response.closeConnection())
+    if (response.closeConnection())
     {
         conn->shutdown();
     }

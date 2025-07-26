@@ -20,6 +20,31 @@
 #include <openssl/buffer.h>
 #include <iomanip>
 
+/**
+ * @brief 一个简单的 WebSocket Echo 处理器
+ * @details 实现了 WebSocketHandler 接口，会将收到的任何消息原样返回给客户端。
+ */
+class EchoWebSocketHandler : public WebSocketHandler
+{
+public:
+    void onConnect(const TcpConnectionPtr &conn) override
+    {
+        DLOG_INFO << "[WebSocket] Echo handler new connection: " << conn->peerAddress().toIpPort();
+    }
+
+    void onMessage(const TcpConnectionPtr &conn, const std::string &message) override
+    {
+        DLOG_INFO << "[WebSocket] Echo handler received message: '" << message << "' from " << conn->peerAddress().toIpPort();
+        // 将收到的消息直接发回客户端
+        conn->sendWebSocket(message);
+    }
+
+    void onClose(const TcpConnectionPtr &conn) override
+    {
+        DLOG_INFO << "[WebSocket] Echo handler connection closed: " << conn->peerAddress().toIpPort();
+    }
+};
+
 using json = nlohmann::json;
 
 // --- 密码哈希辅助函数 ---
@@ -175,6 +200,9 @@ void WebServer::registerRoutes()
 {
     DLOG_INFO << "[WebServer] 开始注册路由...";
 
+    // --- WebSocket 路由 ---
+    router_.addWebSocket("/echo", std::make_shared<EchoWebSocketHandler>());
+
     // --- 全局中间件 ---
     // 对所有请求都应用日志中间件。
     router_.use(loggingMiddleware);
@@ -275,12 +303,13 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 
             // --- 协议升级核心逻辑 ---
             auto conn = std::any_cast<TcpConnectionPtr>(req.getContext());
-            auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getMutableContext());
+            auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
             context->state = SocketContext::WEBSOCKET; // 切换状态
             context->wsHandler = wsHandler;            // 绑定处理器
 
             // 触发连接建立回调
             wsHandler->onConnect(conn);
+
             return;
         }
     }

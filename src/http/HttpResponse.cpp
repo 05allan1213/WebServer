@@ -1,5 +1,6 @@
 #include "http/HttpResponse.h"
 #include <cstdio>
+#include <strings.h>
 #include "log/Log.h"
 
 /**
@@ -36,13 +37,28 @@ void HttpResponse::appendToBuffer(Buffer *output) const
         output->append(buf, strlen(buf));
     }
 
-    if (closeConnection_)
+    // 检查用户是否已经设置了 Connection 头
+    bool connectionHeaderSet = false;
+    for (const auto &header : headers_)
     {
-        output->append("Connection: close\r\n", 17);
+        if (strcasecmp(header.first.c_str(), "Connection") == 0)
+        {
+            connectionHeaderSet = true;
+            break;
+        }
     }
-    else
+
+    // 只有在用户没有设置的情况下，才添加默认的 Connection 头
+    if (!connectionHeaderSet)
     {
-        output->append("Connection: Keep-Alive\r\n", 21);
+        if (closeConnection_)
+        {
+            output->append("Connection: close\r\n", 17);
+        }
+        else
+        {
+            output->append("Connection: Keep-Alive\r\n", 21);
+        }
     }
 
     for (const auto &header : headers_)
