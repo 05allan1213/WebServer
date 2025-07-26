@@ -54,6 +54,13 @@ public:
     bool setMethod(const char *start, const char *end);
 
     /**
+     * @brief 设置HTTP方法 (从字符串)
+     * @param m 方法字符串
+     * @return 是否设置成功
+     */
+    bool setMethod(const std::string &m);
+
+    /**
      * @brief 获取HTTP方法
      * @return Method枚举值
      */

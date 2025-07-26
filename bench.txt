@@ -1,0 +1,10 @@
+---------------------------------------------------------------------
+Benchmark                     Time             CPU         Iterations
+---------------------------------------------------------------------
+BM_SimpleGetRequest_mean      2718 ns         2718 ns              3
+BM_SimpleGetRequest_median    2733 ns         2733 ns              3
+BM_SimpleGetRequest_stddev    25.8 ns         25.8 ns              3
+BM_SimpleGetRequest_cv        0.95 %          0.95 %               3
+
+QPS = 1,000,000,000 / 2718 ≈ 367,917
+即每秒可以处理大约 36.8 万次请求。

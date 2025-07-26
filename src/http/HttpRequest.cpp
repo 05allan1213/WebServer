@@ -52,6 +52,36 @@ bool HttpRequest::setMethod(const char *start, const char *end)
     return method_ != Method::kInvalid;
 }
 
+bool HttpRequest::setMethod(const std::string &m)
+{
+    if (m == "GET")
+    {
+        method_ = Method::kGet;
+    }
+    else if (m == "POST")
+    {
+        method_ = Method::kPost;
+    }
+    else if (m == "HEAD")
+    {
+        method_ = Method::kHead;
+    }
+    else if (m == "PUT")
+    {
+        method_ = Method::kPut;
+    }
+    else if (m == "DELETE")
+    {
+        method_ = Method::kDelete;
+    }
+    else
+    {
+        method_ = Method::kInvalid;
+    }
+    DLOG_DEBUG << "[HttpRequest] setMethod: " << m << ", 结果: " << static_cast<int>(method_);
+    return method_ != Method::kInvalid;
+}
+
 void HttpRequest::addHeader(const char *start, const char *colon, const char *end)
 {
     std::string field(start, colon);

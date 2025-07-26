@@ -1,12 +1,9 @@
-# 设置 CMake 最低版本要求
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
-
-# 设置项目名称和语言
 project(webserver LANGUAGES CXX)
 
-# 默认使用 Debug 模式
+# 基准测试建议使用 Release 模式以获得准确的性能数据
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 endif()
 
 # --- 编译器设置 ---
@@ -24,6 +21,9 @@ find_package(yaml-cpp REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
+
+# --- 从系统中查找 Benchmark 库 ---
+find_package(benchmark REQUIRED)
 
 # --- 启用测试并寻找 GTest ---
 enable_testing()
@@ -47,14 +47,11 @@ target_link_libraries(webserver
     Threads::Threads
 )
 
-# --- 统一的测试可执行文件 ---
-# 收集所有在 src/tests/ 目录下的测试源文件
-file(GLOB_RECURSE TEST_SOURCES "src/tests/*.cpp")
-
-# 创建一个名为 "webserver_test" 的测试可执行文件
+# --- 统一的单元测试可执行文件 ---
+file(GLOB_RECURSE TEST_SOURCES 
+    "src/tests/test_*.cpp"
+)
 add_executable(webserver_test ${TEST_SOURCES})
-
-# 为测试目标链接所有必要的库
 target_link_libraries(webserver_test 
     PRIVATE 
     base log net http db ssl websocket
@@ -66,6 +63,18 @@ target_link_libraries(webserver_test
     OpenSSL::Crypto 
     Threads::Threads
 )
+add_test(NAME WebServerUnitTests COMMAND webserver_test)
 
-# 将测试可执行文件添加到 CTest，这样就可以用 'ctest' 命令运行
-add_test(NAME WebServerTests COMMAND webserver_test)
+# --- 基准测试可执行文件 ---
+add_executable(webserver_bench src/tests/benchmark_server.cpp)
+target_link_libraries(webserver_bench
+    PRIVATE
+    base log net http db ssl websocket
+    benchmark::benchmark 
+    yaml-cpp::yaml-cpp
+    jwt-cpp::jwt-cpp
+    mysqlclient
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    Threads::Threads
+)
