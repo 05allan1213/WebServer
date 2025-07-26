@@ -13,6 +13,7 @@
 #include "net/TimerId.h"
 #include "net/NetworkConfig.h"
 #include <openssl/ssl.h>
+#include "websocket/WebSocketParser.h"
 
 class Channel;
 class EventLoop;
@@ -26,6 +27,18 @@ class SSLContext;
 class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnection>
 {
 public:
+    /**
+     * @brief 连接状态枚举
+     */
+    enum State // 连接状态枚举
+    {
+        kDisconnected,  // 已断开连接
+        kConnecting,    // 正在连接中
+        kConnected,     // 已连接
+        kDisconnecting, // 正在断开连接
+        KHandshaking    // SSL握手状态
+    };
+
     /**
      * @brief 构造函数
      * @param loop 所属的EventLoop指针
@@ -99,6 +112,13 @@ public:
     void sendFile(const std::string &filePath, bool closeAfterSend);
 
     /**
+     * @brief 发送WebSocket消息
+     * @param payload 消息内容
+     * @param opcode 消息类型
+     */
+    void sendWebSocket(const std::string &payload, WebSocketParser::Opcode opcode = WebSocketParser::TEXT_FRAME);
+
+    /**
      * @brief 关闭连接
      *
      * 关闭写端,停止发送数据,但保持读端开放
@@ -160,18 +180,6 @@ public:
     const std::any &getContext() const { return context_; }
 
 private:
-    /**
-     * @brief 连接状态枚举
-     */
-    enum State // 连接状态枚举
-    {
-        kDisconnected,  // 已断开连接
-        kConnecting,    // 正在连接中
-        kConnected,     // 已连接
-        kDisconnecting, // 正在断开连接
-        KHandshaking    // SSL握手状态
-    };
-
     /**
      * @brief 设置连接状态
      * @param state 新的连接状态

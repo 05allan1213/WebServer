@@ -4,6 +4,7 @@
 #include "net/Callbacks.h"
 #include "http/HttpRequest.h"
 #include "http/HttpResponse.h"
+#include "websocket/WebSocketHandler.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -43,6 +44,8 @@ public:
     template <typename... Handlers>
     void add(const std::string &method, const std::string &path, Handlers... handlers);
 
+    void addWebSocket(const std::string &path, WebSocketHandler::Ptr handler);
+
     template <typename... Handlers>
     void all(const std::string &path, Handlers... handlers)
     {
@@ -62,6 +65,7 @@ public:
     }
 
     RouteMatchResult match(const std::string &method, const std::string &path) const;
+    WebSocketHandler::Ptr matchWebSocket(const HttpRequest &req) const;
 
 private:
     Middleware wrapHandler(HttpHandler handler);
@@ -74,6 +78,7 @@ private:
     std::unordered_map<std::string, std::unique_ptr<RouteNode>> routes_;
     // 将正则表达式路由的结构体修改为包含 RouteNode 指针
     std::vector<std::pair<std::regex, RouteNode *>> regexRoutes_;
+    std::unordered_map<std::string, WebSocketHandler::Ptr> wsRoutes_;
 };
 
 // --- Template Implementations Must Be in Header ---

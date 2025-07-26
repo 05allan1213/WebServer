@@ -2,6 +2,7 @@
 #include "net/NetworkConfig.h"
 #include <any>
 #include "log/Log.h"
+#include "SocketContext.h"
 
 /**
  * @brief HttpServer 构造函数
@@ -40,47 +41,83 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
     if (conn->connected())
     {
         DLOG_INFO << "新连接建立: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
-        conn->setContext(HttpParser());
+        // 为新连接创建一个统一的SocketContext
+        conn->setContext(std::make_shared<SocketContext>());
     }
     else
     {
         DLOG_INFO << "连接断开: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
+        auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getContext());
+        if (context && context->state == SocketContext::WEBSOCKET && context->wsHandler)
+        {
+            context->wsHandler->onClose(conn);
+        }
     }
 }
 
 void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp recvTime)
 {
-    auto *parser = std::any_cast<HttpParser>(conn->getMutableContext());
-    try
+    auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getMutableContext());
+
+    // 根据上下文的状态，分发到不同的解析器
+    if (context->state == SocketContext::HTTP)
     {
-        if (!parser->parseRequest(buf))
+        // --- 处理HTTP请求 ---
+        if (!context->httpParser.parseRequest(buf))
         {
-            DLOG_WARN << "HTTP请求解析失败: 连接=" << conn->name();
             conn->send("HTTP/1.1 400 Bad Request\r\n\r\n");
             conn->shutdown();
             return;
         }
-    }
-    catch (const std::exception &e)
-    {
-        DLOG_ERROR << "Exception during parseRequest for " << conn->name() << ": " << e.what();
-        conn->send("HTTP/1.1 400 Bad Request\r\n\r\n");
-        conn->shutdown();
-        return;
-    }
 
-    if (parser->gotAll())
+        if (context->httpParser.gotAll())
+        {
+            // 将TcpConnectionPtr存入HttpRequest的上下文中，传递给上层
+            context->httpParser.getMutableRequest()->setContext(conn);
+            onRequest(conn, context->httpParser.request());
+            context->httpParser.reset();
+        }
+    }
+    else // WEBSOCKET
     {
-        onRequest(conn, parser->request());
-        parser->reset();
+        // --- 处理WebSocket帧 ---
+        auto onFrame = [&](WebSocketParser::Opcode opcode, const std::string &payload)
+        {
+            switch (opcode)
+            {
+            case WebSocketParser::TEXT_FRAME:
+            case WebSocketParser::BINARY_FRAME:
+                context->wsHandler->onMessage(conn, payload);
+                break;
+            case WebSocketParser::PING:
+                conn->sendWebSocket(payload, WebSocketParser::PONG);
+                break;
+            case WebSocketParser::CONNECTION_CLOSE:
+                conn->shutdown();
+                break;
+            default:
+                break;
+            }
+        };
+
+        while (buf->readableBytes() > 0)
+        {
+            auto result = context->wsParser.parse(buf, onFrame);
+            if (result == WebSocketParser::INCOMPLETE)
+                break;
+            if (result == WebSocketParser::ERROR)
+            {
+                conn->shutdown();
+                break;
+            }
+        }
     }
 }
 
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
     const std::string &connection = req.getHeader("Connection").value_or("close");
-    bool close = (connection == "close") ||
-                 (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
+    bool close = (connection == "close") || (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
     HttpResponse response(close);
 
     if (httpCallback_)
@@ -88,24 +125,12 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
         httpCallback_(req, &response);
     }
 
-    const auto &filePath = response.getFilePath();
-    if (filePath.has_value())
+    Buffer buf;
+    response.appendToBuffer(&buf);
+    conn->send(buf.retrieveAllAsString());
+
+    if (response.getStatusCode() != HttpResponse::k101SwitchingProtocols && response.closeConnection())
     {
-        Buffer buf;
-        response.appendToBuffer(&buf);
-        conn->send(buf.retrieveAllAsString());
-        // 将关闭连接的决定传递下去
-        conn->sendFile(filePath.value(), response.closeConnection());
-    }
-    else
-    {
-        Buffer buf;
-        response.appendToBuffer(&buf);
-        conn->send(buf.retrieveAllAsString());
-        // 传统方式发送完后，如果需要关闭，则调用 shutdown
-        if (response.closeConnection())
-        {
-            conn->shutdown();
-        }
+        conn->shutdown();
     }
 }

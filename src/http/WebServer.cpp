@@ -1,4 +1,5 @@
 #include "http/WebServer.h"
+#include "http/SocketContext.h"
 #include "base/ConfigManager.h"
 #include "base/MemoryPool.h"
 #include "base/Buffer.h"
@@ -15,6 +16,8 @@
 #include <nlohmann/json.hpp>
 #include <jwt-cpp/jwt.h>
 #include <openssl/sha.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
 #include <iomanip>
 
 using json = nlohmann::json;
@@ -237,6 +240,52 @@ void WebServer::initCallbacks()
  */
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
+    auto upgradeHeader = req.getHeader("Upgrade");
+    if (upgradeHeader && upgradeHeader->find("websocket") != std::string::npos)
+    {
+        WebSocketHandler::Ptr wsHandler = router_.matchWebSocket(req);
+        if (wsHandler)
+        {
+            auto key = req.getHeader("Sec-WebSocket-Key");
+            if (!key)
+            {
+                resp->setStatusCode(HttpResponse::k400BadRequest);
+                return;
+            }
+            std::string combined = key.value() + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            unsigned char hash[SHA_DIGEST_LENGTH];
+            SHA1(reinterpret_cast<const unsigned char *>(combined.c_str()), combined.length(), hash);
+
+            BIO *b64 = BIO_new(BIO_f_base64());
+            BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+            BIO *mem = BIO_new(BIO_s_mem());
+            BIO_push(b64, mem);
+            BIO_write(b64, hash, SHA_DIGEST_LENGTH);
+            BIO_flush(b64);
+            BUF_MEM *bptr;
+            BIO_get_mem_ptr(b64, &bptr);
+            std::string acceptKey(bptr->data, bptr->length);
+            BIO_free_all(b64);
+
+            resp->setStatusCode(HttpResponse::k101SwitchingProtocols);
+            resp->setStatusMessage("Switching Protocols");
+            resp->setHeader("Upgrade", "websocket");
+            resp->setHeader("Connection", "Upgrade");
+            resp->setHeader("Sec-WebSocket-Accept", acceptKey);
+
+            // --- 协议升级核心逻辑 ---
+            auto conn = std::any_cast<TcpConnectionPtr>(req.getContext());
+            auto context = std::any_cast<std::shared_ptr<SocketContext>>(conn->getMutableContext());
+            context->state = SocketContext::WEBSOCKET; // 切换状态
+            context->wsHandler = wsHandler;            // 绑定处理器
+
+            // 触发连接建立回调
+            wsHandler->onConnect(conn);
+            return;
+        }
+    }
+
+    // 如果不是WebSocket请求，则执行HTTP中间件链
     const char *methodStr = req.getMethodString();
     const std::string &path = req.getPath();
     DLOG_INFO << "[WebServer] 收到HTTP请求: " << methodStr << " " << path;

@@ -8,6 +8,22 @@ void Router::use(Middleware middleware)
     globalMiddlewares_.push_back(std::move(middleware));
 }
 
+void Router::addWebSocket(const std::string &path, WebSocketHandler::Ptr handler)
+{
+    DLOG_INFO << "[Router] 添加WebSocket路由: " << path;
+    wsRoutes_[path] = handler;
+}
+
+WebSocketHandler::Ptr Router::matchWebSocket(const HttpRequest &req) const
+{
+    auto it = wsRoutes_.find(req.getPath());
+    if (it != wsRoutes_.end())
+    {
+        return it->second;
+    }
+    return nullptr;
+}
+
 Middleware Router::wrapHandler(HttpHandler handler)
 {
     return [handler](const HttpRequest &req, HttpResponse *resp, Next)

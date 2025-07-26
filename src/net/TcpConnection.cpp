@@ -193,6 +193,21 @@ void TcpConnection::shutdownInLoop()
     }
 }
 
+void TcpConnection::sendWebSocket(const std::string &payload, WebSocketParser::Opcode opcode)
+{
+    std::string frame = WebSocketParser::encodeFrame(opcode, payload);
+    if (loop_->isInLoopThread())
+    {
+        sendInLoop(frame.c_str(), frame.size());
+    }
+    else
+    {
+        // 捕获frame的拷贝
+        loop_->runInLoop([self = shared_from_this(), frame]()
+                         { self->sendInLoop(frame.c_str(), frame.size()); });
+    }
+}
+
 // 连接建立
 void TcpConnection::connectEstablished()
 {

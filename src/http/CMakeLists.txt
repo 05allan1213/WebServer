@@ -17,4 +17,4 @@ find_package(yaml-cpp REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 # 添加依赖
-target_link_libraries(http PRIVATE base log net yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(http PRIVATE base log net websocket yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)

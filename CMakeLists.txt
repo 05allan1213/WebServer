@@ -60,7 +60,7 @@ find_package(OpenSSL REQUIRED)
 #target_link_libraries(test_config PRIVATE yaml-cpp::yaml-cpp base log net)
 
 add_executable(webserver src/tests/main.cpp)
-target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient OpenSSL::SSL OpenSSL::Crypto base log net http db ssl)
+target_link_libraries(webserver PRIVATE yaml-cpp::yaml-cpp jwt-cpp::jwt-cpp mysqlclient OpenSSL::SSL OpenSSL::Crypto base log net http db ssl websocket)
 
 # 添加google test 程序
 # add_executable(test_buffer src/tests/test_buffer.cpp src/base/Buffer.cpp src/base/BaseConfig.cpp src/base/Timestamp.cpp src/log/Log.cpp src/log/LogLevel.cpp src/log/Logger.cpp)
