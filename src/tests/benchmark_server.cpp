@@ -5,6 +5,9 @@
 #include <chrono>
 #include <future>
 #include <csignal>
+#include <curl/curl.h>
+#include <string>
+#include <iostream>
 
 // --- 全局服务器实例 ---
 // 我们在所有基准测试之外启动一个服务器实例，以模拟真实运行环境。
@@ -12,7 +15,62 @@ std::unique_ptr<WebServer> g_server;
 std::unique_ptr<std::thread> g_server_thread;
 std::shared_ptr<NetworkConfig> g_net_config;
 
-// --- 基准测试用例 ---
+// --- CURL 相关函数 ---
+// 回调函数：丢弃响应体数据（节省内存，不处理内容）
+size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    return size * nmemb;
+}
+
+// HTTPS请求函数，支持GET/POST，跳过证书验证（自签证书适用）
+// 返回HTTP状态码，失败返回-1
+int simple_http_request(const std::string &url,
+                        const std::string &method = "GET",
+                        const std::string &body = "")
+{
+    CURL *curl = curl_easy_init();
+    if (!curl)
+        return -1;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method.c_str());
+
+    if (method == "POST")
+    {
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)body.size());
+
+        // 设置 Content-Type 为 application/json
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // 跳过证书验证（自签证书环境下必需）
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+    // 忽略响应体内容
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    CURLcode res = curl_easy_perform(curl);
+    long response_code = 0;
+    if (res == CURLE_OK)
+    {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    }
+    else
+    {
+        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << "\n";
+        curl_easy_cleanup(curl);
+        return -1;
+    }
+
+    curl_easy_cleanup(curl);
+    return static_cast<int>(response_code);
+}
+
+// --- 内部基准测试用例 ---
 // 这个函数定义了我们要测试的具体操作。
 // 在这个例子中，我们模拟一个最简单的 HTTP GET 请求。
 static void BM_SimpleGetRequest(benchmark::State &state)
@@ -44,9 +102,43 @@ static void BM_SimpleGetRequest(benchmark::State &state)
     }
 }
 
+// --- 真实网络请求基准测试 ---
+// Benchmark 测试 - GET https://127.0.0.1:8443/
+static void BM_RealHttpGetRoot(benchmark::State &state)
+{
+    std::string url = "https://127.0.0.1:8443/";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
+// Benchmark 测试 - POST https://127.0.0.1:8443/api/login
+static void BM_RealHttpPostLogin(benchmark::State &state)
+{
+    std::string url = "https://127.0.0.1:8443/api/login";
+    std::string body = R"({"username":"ayp","password":"123456"})";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "POST", body);
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
 // --- 注册基准测试 ---
 // 将我们的测试用例注册到 benchmark 框架中。
 BENCHMARK(BM_SimpleGetRequest);
+BENCHMARK(BM_RealHttpGetRoot)->Threads(8);
+BENCHMARK(BM_RealHttpPostLogin)->Threads(8);
 
 // --- 基准测试主函数 ---
 int main(int argc, char **argv)
@@ -75,12 +167,18 @@ int main(int argc, char **argv)
     std::this_thread::sleep_for(std::chrono::seconds(2));
     DLOG_FATAL << "服务器已启动，开始运行基准测试...";
 
-    // 4. 初始化并运行所有已注册的基准测试
+    // 4. 初始化curl全局环境
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    // 5. 初始化并运行所有已注册的基准测试
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();
     ::benchmark::Shutdown();
 
-    // 5. 停止服务器并清理资源（添加超时机制）
+    // 6. 清理curl全局环境
+    curl_global_cleanup();
+
+    // 7. 停止服务器并清理资源（添加超时机制）
     g_server->stop();
 
     // 使用超时机制等待服务器线程结束

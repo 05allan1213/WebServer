@@ -21,6 +21,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
+find_package(CURL REQUIRED)
 
 # --- 从系统中查找 Benchmark 库 ---
 find_package(benchmark REQUIRED)
@@ -84,4 +85,5 @@ target_link_libraries(webserver_bench
     OpenSSL::SSL
     OpenSSL::Crypto
     Threads::Threads
+    CURL::libcurl
 )
