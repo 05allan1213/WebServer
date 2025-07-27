@@ -17,7 +17,10 @@ class ConfigManager;
 class NetworkConfig;
 
 /**
- * @brief WebServer 主服务器类
+ * @brief WebServer主服务器类
+ *
+ * 整合了所有核心组件，包括网络服务、路由管理、线程池等。
+ * 提供完整的HTTP服务器功能，支持静态文件和动态请求处理。
  */
 class WebServer
 {
@@ -34,13 +37,15 @@ public:
     ~WebServer();
 
     /**
-     * @brief 启动服务器(包括日志、线程池、网络服务、主事件循环)
+     * @brief 启动服务器（包括日志、线程池、网络服务、主事件循环）
      */
     void start();
+
     /**
      * @brief 停止服务器，优雅关闭所有资源
      */
     void stop();
+
     /**
      * @brief 获取路由器的引用，用于注册路由和中间件
      * @return Router&
@@ -54,11 +59,12 @@ public:
 
 private:
     /**
-     * @brief 初始化 HTTP 回调，将请求分发到 onHttpRequest
+     * @brief 初始化HTTP回调，将请求分发到onHttpRequest
      */
     void initCallbacks();
+
     /**
-     * @brief HTTP请求统一入口，根据 path 路由到静态或动态处理
+     * @brief HTTP请求统一入口，根据path路由到静态或动态处理
      * @param req HTTP请求对象
      * @param resp HTTP响应对象
      */
@@ -67,10 +73,10 @@ private:
     ConfigManager &configManager_;                 // 保存配置管理器的引用
     std::shared_ptr<NetworkConfig> networkConfig_; // 保存网络配置
 
-    std::unique_ptr<EventLoop> mainLoop_;      // 主事件循环对象，负责 IO 事件分发
-    std::unique_ptr<HttpServer> server_;       // HTTP服务器对象，负责 TCP 连接与 HTTP 协议处理
-    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务(可扩展)
-    std::shared_ptr<LogManager> logManager_;   // 日志管理器，保证日志系统生命周期覆盖 WebServer
+    std::unique_ptr<EventLoop> mainLoop_;      // 主事件循环对象，负责IO事件分发
+    std::unique_ptr<HttpServer> server_;       // HTTP服务器对象，负责TCP连接与HTTP协议处理
+    std::unique_ptr<ThreadPool> businessPool_; // 业务线程池，处理耗时任务（可扩展）
+    std::shared_ptr<LogManager> logManager_;   // 日志管理器，保证日志系统生命周期覆盖WebServer
     std::atomic_bool running_;                 // 运行状态标志，线程安全
     Router router_;                            // 路由器，负责路由和中间件管理
 };

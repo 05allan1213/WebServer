@@ -5,13 +5,14 @@
 #include "SocketContext.h"
 
 /**
- * @brief HttpServer 构造函数
- * @param loop      事件循环指针
- * @param addr      监听地址
- * @param name      服务器名称
- * @param config    网络配置对象的共享指针
+ * @brief HttpServer构造函数
+ * @param loop 事件循环指针
+ * @param addr 监听地址
+ * @param name 服务器名称
+ * @param config 网络配置对象的共享指针
  *
- * 初始化底层TcpServer,设置连接和消息回调。
+ * 初始化底层TcpServer，设置连接和消息回调。
+ * 为每个连接分配SocketContext用于状态管理。
  */
 HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config)
     : server_(loop, addr, name, config)
@@ -22,9 +23,14 @@ HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::stri
     server_.setMessageCallback(
         std::bind(&HttpServer::onMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-    // TcpServer 内部会根据 config 设置线程数，这里不再需要 setThreadNum
+    // TcpServer内部会根据config设置线程数，这里不再需要setThreadNum
 }
 
+/**
+ * @brief 启用HTTPS支持
+ * @param certPath 证书文件路径
+ * @param keyPath 私钥文件路径
+ */
 void HttpServer::enableSSL(const std::string &certPath, const std::string &keyPath)
 {
     server_.enableSSL(certPath, keyPath);
@@ -34,14 +40,15 @@ void HttpServer::enableSSL(const std::string &certPath, const std::string &keyPa
  * @brief 连接建立/断开回调
  * @param conn TCP连接指针
  *
- * 新连接建立时为其分配一个HttpParser实例,断开时记录日志。
+ * 新连接建立时为其分配一个SocketContext实例，断开时记录日志。
+ * 支持WebSocket连接的状态管理和清理。
  */
 void HttpServer::onConnection(const TcpConnectionPtr &conn)
 {
     if (conn->connected())
     {
         DLOG_INFO << "新连接建立: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
-        // 为新连接创建一个统一的SocketContext
+        // 为新连接创建一个统一的SocketContext，初始状态为HTTP
         conn->setContext(std::make_shared<SocketContext>());
     }
     else
@@ -60,6 +67,16 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
     }
 }
 
+/**
+ * @brief 消息接收回调
+ * @param conn TCP连接指针
+ * @param buf 接收缓冲区
+ * @param recvTime 接收时间戳
+ *
+ * 根据连接状态分发到不同的解析器：
+ * - HTTP状态：使用HttpParser解析HTTP请求
+ * - WebSocket状态：使用WebSocketParser解析WebSocket帧
+ */
 void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp recvTime)
 {
     auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
@@ -70,6 +87,7 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
         // --- 处理HTTP请求 ---
         if (!context->httpParser.parseRequest(buf))
         {
+            // 解析失败，返回400错误并关闭连接
             conn->send("HTTP/1.1 400 Bad Request\r\n\r\n");
             conn->shutdown();
             return;
@@ -92,12 +110,15 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
             {
             case WebSocketParser::TEXT_FRAME:
             case WebSocketParser::BINARY_FRAME:
+                // 文本或二进制消息，转发给WebSocket处理器
                 context->wsHandler->onMessage(conn, payload);
                 break;
             case WebSocketParser::PING:
+                // 收到PING，自动回复PONG
                 conn->sendWebSocket(payload, WebSocketParser::PONG);
                 break;
             case WebSocketParser::CONNECTION_CLOSE:
+                // 收到关闭帧，关闭连接
                 conn->shutdown();
                 break;
             default:
@@ -105,13 +126,15 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
             }
         };
 
+        // 循环解析WebSocket帧，直到缓冲区为空或解析出错
         while (buf->readableBytes() > 0)
         {
             auto result = context->wsParser.parse(buf, onFrame);
             if (result == WebSocketParser::INCOMPLETE)
-                break;
+                break; // 数据不完整，等待更多数据
             if (result == WebSocketParser::ERROR)
             {
+                // 解析出错，关闭连接
                 conn->shutdown();
                 break;
             }
@@ -119,12 +142,21 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
     }
 }
 
+/**
+ * @brief HTTP请求处理回调
+ * @param conn TCP连接指针
+ * @param req HTTP请求对象
+ *
+ * 根据请求内容生成HTTP响应，支持连接管理和WebSocket升级。
+ */
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
+    // 根据Connection头部和HTTP版本判断是否关闭连接
     const std::string &connection = req.getHeader("Connection").value_or("close");
     bool close = (connection == "close") || (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
     HttpResponse response(close);
 
+    // 调用用户设置的HTTP回调函数处理请求
     if (httpCallback_)
     {
         httpCallback_(req, &response);
@@ -141,10 +173,12 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
         return;
     }
 
+    // 序列化响应并发送
     Buffer buf;
     response.appendToBuffer(&buf);
     conn->send(buf.retrieveAllAsString());
 
+    // 根据响应设置决定是否关闭连接
     if (response.closeConnection())
     {
         conn->shutdown();

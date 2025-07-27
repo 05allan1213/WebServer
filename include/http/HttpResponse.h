@@ -7,11 +7,12 @@
 #include "log/Log.h"
 
 /**
- * @brief HTTP响应对象,封装响应状态、头部、消息体等信息
+ * @brief HTTP响应对象，封装响应状态、头部、消息体等信息
  *
  * 用法：
  * 1. 由业务代码生成并填充
  * 2. 通过appendToBuffer序列化为HTTP响应报文
+ * 3. 支持零拷贝文件发送和分块传输编码
  */
 class HttpResponse
 {
@@ -30,7 +31,7 @@ public:
         k401Unauthorized = 401,        // 未认证
         k403Forbidden = 403,           // 禁止访问
         k404NotFound = 404,            // 未找到
-        k409Conflict = 409,            // 资源冲突 (例如，用户名已存在)
+        k409Conflict = 409,            // 资源冲突（例如，用户名已存在）
         k500InternalServerError = 500, // 服务器错误
     };
 
@@ -68,13 +69,13 @@ public:
 
     /**
      * @brief 设置响应头部字段
-     * @param key   头部名
+     * @param key 头部名
      * @param value 头部值
      */
     void setHeader(const std::string &key, const std::string &value) { headers_[key] = value; }
 
     /**
-     * @brief 设置内容类型(Content-Type)
+     * @brief 设置内容类型（Content-Type）
      * @param contentType 内容类型字符串
      */
     void setContentType(const std::string &contentType)
@@ -82,6 +83,7 @@ public:
         setHeader("Content-Type", contentType);
         DLOG_DEBUG << "[HttpResponse] setContentType: " << contentType;
     }
+
     /**
      * @brief 设置响应体
      * @param body 响应体字符串
@@ -91,16 +93,19 @@ public:
         body_ = body;
         DLOG_DEBUG << "[HttpResponse] setBody, 长度: " << body.size();
     }
+
     /**
      * @brief 设置一个文件路径用于零拷贝发送
      * @param path 要发送的文件的完整路径
      */
     void setFilePath(const std::string &path) { filePath_ = path; }
+
     /**
      * @brief 获取用于零拷贝的文件路径
      * @return std::optional<std::string> 包含文件路径，如果未设置则为空
      */
     const std::optional<std::string> &getFilePath() const { return filePath_; }
+
     /**
      * @brief 获取是否需要关闭连接
      * @return true表示需要关闭
@@ -115,18 +120,33 @@ public:
     void setChunkedEncoding(bool on) { chunked_ = on; }
 
     /**
-     * @brief 序列化响应为HTTP报文,写入缓冲区
+     * @brief 序列化响应为HTTP报文，写入缓冲区
      * @param output 输出缓冲区指针
      */
     void appendToBuffer(Buffer *output) const;
 
-    // 设置 Content-Length
+    /**
+     * @brief 设置Content-Length头部
+     * @param length 内容长度
+     */
     void setContentLength(size_t length);
-    // 设置 Last-Modified
+
+    /**
+     * @brief 设置Last-Modified头部
+     * @param time 最后修改时间
+     */
     void setLastModified(const std::string &time);
-    // 设置 ETag
+
+    /**
+     * @brief 设置ETag头部
+     * @param etag ETag值
+     */
     void setETag(const std::string &etag);
-    // 设置 Cache-Control
+
+    /**
+     * @brief 设置Cache-Control头部
+     * @param value 缓存控制值
+     */
     void setCacheControl(const std::string &value);
 
 private:
@@ -135,6 +155,6 @@ private:
     std::unordered_map<std::string, std::string> headers_; // 响应头部
     std::string body_;                                     // 响应体
     bool closeConnection_;                                 // 是否关闭连接
-    std::optional<std::string> filePath_;                  // 文件路径,用于零拷贝发送
+    std::optional<std::string> filePath_;                  // 文件路径，用于零拷贝发送
     bool chunked_ = false;                                 // 是否启用分块传输编码
 };

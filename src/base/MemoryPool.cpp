@@ -10,7 +10,7 @@ MemoryPool &MemoryPool::getInstance()
 
 MemoryPool::MemoryPool()
 {
-    // 初始化不同大小的内存池，例如 64B, 128B, ... 64KB
+    // 初始化不同大小的内存池，例如64B, 128B, ... 64KB
     for (size_t i = 64; i <= 65536; i *= 2)
     {
         poolSizes_.push_back(i);
@@ -26,7 +26,7 @@ MemoryPool::~MemoryPool()
 void MemoryPool::expandPool(size_t poolIndex)
 {
     size_t blockSize = poolSizes_[poolIndex];
-    // 每次为池分配一个 128KB 的大块
+    // 每次为池分配一个128KB的大块
     const size_t numBlocksToAlloc = 128 * 1024 / blockSize;
     try
     {
@@ -65,8 +65,8 @@ void *MemoryPool::allocate(size_t size)
         }
     }
 
-    // 如果请求的大小超过了最大的池，则直接使用 new
-    DLOG_WARN << "[MemoryPool] 分配大小 " << size << " 超过最大池限制，回退到 new";
+    // 如果请求的大小超过了最大的池，则直接使用new
+    DLOG_WARN << "[MemoryPool] 分配大小 " << size << " 超过最大池限制，回退到new";
     return ::operator new(size);
 }
 
@@ -87,7 +87,7 @@ void MemoryPool::deallocate(void *ptr, size_t size)
         }
     }
 
-    // 如果是大块内存，则使用 delete
-    DLOG_WARN << "[MemoryPool] 释放大小 " << size << " 超过最大池限制，使用 delete";
+    // 如果是大块内存，则使用delete
+    DLOG_WARN << "[MemoryPool] 释放大小 " << size << " 超过最大池限制，使用delete";
     ::operator delete(ptr);
 }

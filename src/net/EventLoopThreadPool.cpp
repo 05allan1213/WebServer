@@ -3,48 +3,88 @@
 #include "EventLoopThread.h"
 #include "log/Log.h"
 
+/**
+ * @brief 构造函数
+ * @param baseLoop 基础EventLoop指针
+ * @param nameArg 线程池名称
+ * @param epollMode epoll模式，支持ET/LT
+ * @details 初始化EventLoopThreadPool对象，设置基础EventLoop和线程池名称
+ */
 EventLoopThreadPool::EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg, const std::string &epollMode)
     : baseLoop_(baseLoop), name_(nameArg), started_(false), threadNum_(0), next_(0), epollMode_(epollMode)
 {
     DLOG_INFO << "EventLoopThreadPool 创建 - 名称: " << name_ << ", 基础EventLoop: " << baseLoop_ << ", epollMode: " << epollMode_;
 }
 
+/**
+ * @brief 析构函数
+ * @details 记录线程池析构信息
+ */
 EventLoopThreadPool::~EventLoopThreadPool()
 {
     DLOG_INFO << "EventLoopThreadPool 析构 - 名称: " << name_;
 }
 
-// setter方法实现
+/**
+ * @brief 设置线程池线程数量
+ * @param numThreads 线程数量
+ * @details 设置线程池中工作线程的数量
+ */
 void EventLoopThreadPool::setThreadNum(int numThreads)
 {
     DLOG_INFO << "设置线程池线程数: " << numThreads << " (当前: " << threadNum_ << ")";
     threadNum_ = numThreads;
 }
 
+/**
+ * @brief 设置任务队列大小
+ * @param queueSize 队列大小
+ * @details 设置线程池任务队列的最大容量
+ */
 void EventLoopThreadPool::setQueueSize(int queueSize)
 {
     DLOG_INFO << "设置线程池队列大小: " << queueSize << " (当前: " << queueSize_ << ")";
     queueSize_ = queueSize;
 }
 
+/**
+ * @brief 设置线程保活时间
+ * @param keepAliveTime 保活时间（秒）
+ * @details 设置空闲线程的最大保活时间
+ */
 void EventLoopThreadPool::setKeepAliveTime(int keepAliveTime)
 {
     DLOG_INFO << "设置线程保活时间: " << keepAliveTime << "秒 (当前: " << keepAliveTime_ << ")";
     keepAliveTime_ = keepAliveTime;
 }
 
+/**
+ * @brief 设置最大空闲线程数
+ * @param maxIdleThreads 最大空闲线程数
+ * @details 设置线程池中允许的最大空闲线程数量
+ */
 void EventLoopThreadPool::setMaxIdleThreads(int maxIdleThreads)
 {
     DLOG_INFO << "设置最大空闲线程数: " << maxIdleThreads << " (当前: " << maxIdleThreads_ << ")";
     maxIdleThreads_ = maxIdleThreads;
 }
 
+/**
+ * @brief 设置最小空闲线程数
+ * @param minIdleThreads 最小空闲线程数
+ * @details 设置线程池中保持的最小空闲线程数量
+ */
 void EventLoopThreadPool::setMinIdleThreads(int minIdleThreads)
 {
     DLOG_INFO << "设置最小空闲线程数: " << minIdleThreads << " (当前: " << minIdleThreads_ << ")";
     minIdleThreads_ = minIdleThreads;
 }
 
+/**
+ * @brief 启动线程池
+ * @param cb 线程初始化回调函数
+ * @details 创建并启动指定数量的EventLoopThread，执行初始化回调
+ */
 void EventLoopThreadPool::start(const ThreadInitCallback &cb)
 {
     DLOG_INFO << "启动线程池 - 名称: " << name_ << ", 配置线程数: " << threadNum_;
@@ -95,6 +135,11 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
               << ", 线程池状态: " << (started_ ? "已启动" : "未启动");
 }
 
+/**
+ * @brief 获取下一个EventLoop
+ * @return EventLoop指针，使用轮询算法选择
+ * @details 使用轮询算法从线程池中选择下一个EventLoop，如果没有工作线程则返回基础EventLoop
+ */
 EventLoop *EventLoopThreadPool::getNextLoop()
 {
     EventLoop *loop = baseLoop_;
@@ -124,6 +169,11 @@ EventLoop *EventLoopThreadPool::getNextLoop()
     return loop;
 }
 
+/**
+ * @brief 获取所有EventLoop
+ * @return 包含所有EventLoop指针的vector
+ * @details 返回线程池中所有工作线程的EventLoop指针，如果没有工作线程则只返回基础EventLoop
+ */
 std::vector<EventLoop *> EventLoopThreadPool::getAllLoops()
 {
     // 如果没有工作线程,返回只包含 baseLoop_ 的 vector

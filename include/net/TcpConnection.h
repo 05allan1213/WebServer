@@ -22,7 +22,8 @@ class NetworkConfig;
 class SSLContext;
 
 /**
- * @brief TCP连接类,代表一个TCP连接
+ * @brief TCP连接类
+ * @details 代表一个TCP连接，封装了连接的整个生命周期管理
  */
 class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnection>
 {
@@ -55,8 +56,7 @@ public:
 
     /**
      * @brief 析构函数
-     *
-     * 清理连接资源,关闭socket,移除Channel
+     * @details 清理连接资源，关闭socket，移除Channel
      */
     ~TcpConnection();
 
@@ -86,21 +86,20 @@ public:
 
     /**
      * @brief 检查连接是否已建立
-     * @return 如果连接已建立返回true,否则返回false
+     * @return 如果连接已建立返回true，否则返回false
      */
     bool connected() const { return state_ == kConnected; }
 
     /**
      * @brief 检查连接是否已断开
-     * @return 如果连接已断开返回true,否则返回false
+     * @return 如果连接已断开返回true，否则返回false
      */
     bool disconnected() const { return state_ == kDisconnected; }
 
     /**
      * @brief 向对端发送数据
      * @param buf 要发送的数据字符串
-     *
-     * 如果当前线程是EventLoop线程,直接发送；否则将发送操作加入队列
+     * @details 如果当前线程是EventLoop线程，直接发送；否则将发送操作加入队列
      */
     void send(const std::string &buf);
 
@@ -120,8 +119,7 @@ public:
 
     /**
      * @brief 关闭连接
-     *
-     * 关闭写端,停止发送数据,但保持读端开放
+     * @details 关闭写端，停止发送数据，但保持读端开放
      */
     void shutdown(); // 关闭写端
 
@@ -161,22 +159,33 @@ public:
     void setCloseCallback(const CloseCallback &cb) { closeCallback_ = cb; }
 
     /**
-     * @brief 连接建立后调用,注册Channel到Poller
-     *
-     * 由TcpServer在建立新连接时调用,设置Channel的回调函数并启用读事件监听
+     * @brief 连接建立后调用
+     * @details 由TcpServer在建立新连接时调用，设置Channel的回调函数并启用读事件监听，注册Channel到Poller
      */
-    void connectEstablished(); // 连接建立后调用,注册Channel到Poller
+    void connectEstablished(); // 连接建立后调用，注册Channel到Poller
 
     /**
-     * @brief 连接销毁前调用,从Poller移除Channel
-     *
-     * 由TcpServer在销毁连接时调用,清理Channel资源
+     * @brief 连接销毁前调用
+     * @details 由TcpServer在销毁连接时调用，清理Channel资源，从Poller移除Channel
      */
-    void connectDestroyed(); // 连接销毁前调用,从Poller移除Channel
+    void connectDestroyed(); // 连接销毁前调用，从Poller移除Channel
 
-    // 上下文存取接口
+    /**
+     * @brief 设置上下文数据
+     * @param context 上下文数据
+     */
     void setContext(const std::any &context) { context_ = context; }
+
+    /**
+     * @brief 获取可修改的上下文数据指针
+     * @return 上下文数据指针
+     */
     std::any *getMutableContext() { return &context_; }
+
+    /**
+     * @brief 获取上下文数据
+     * @return 上下文数据
+     */
     const std::any &getContext() const { return context_; }
 
 private:
@@ -189,29 +198,25 @@ private:
     /**
      * @brief 处理读事件
      * @param receiveTime 事件发生的时间戳
-     *
-     * 从socket读取数据到输入缓冲区,并调用用户的消息回调函数
+     * @details 从socket读取数据到输入缓冲区，并调用用户的消息回调函数
      */
     void handleRead(Timestamp receiveTime);
 
     /**
      * @brief 处理写事件
-     *
-     * 将输出缓冲区的数据写入socket,处理写完成回调
+     * @details 将输出缓冲区的数据写入socket，处理写完成回调
      */
     void handleWrite();
 
     /**
      * @brief 处理连接关闭事件
-     *
-     * 处理对端关闭连接的情况,调用相应的回调函数
+     * @details 处理对端关闭连接的情况，调用相应的回调函数
      */
     void handleClose();
 
     /**
      * @brief 处理错误事件
-     *
-     * 处理socket错误,记录错误日志
+     * @details 处理socket错误，记录错误日志
      */
     void handleError();
 
@@ -219,8 +224,7 @@ private:
      * @brief 在所属的EventLoop中执行发送操作
      * @param data 要发送的数据指针
      * @param len 数据长度
-     *
-     * 这是send方法的实际实现,在EventLoop线程中执行
+     * @details 这是send方法的实际实现，在EventLoop线程中执行
      */
     void sendInLoop(const void *data, size_t len);
 
@@ -233,21 +237,36 @@ private:
 
     /**
      * @brief 在所属的EventLoop中执行关闭操作
-     *
-     * 这是shutdown方法的实际实现,在EventLoop线程中执行
+     * @details 这是shutdown方法的实际实现，在EventLoop线程中执行
      */
     void shutdownInLoop();
 
-    // SSL/TLS 相关
+    /**
+     * @brief 处理SSL握手
+     */
     void handleSSLHandshake();
+
+    /**
+     * @brief SSL读取数据
+     * @param saveErrno 保存错误码
+     * @return 读取的字节数
+     */
     ssize_t sslRead(int *saveErrno);
+
+    /**
+     * @brief SSL写入数据
+     * @param data 数据指针
+     * @param len 数据长度
+     * @param saveErrno 保存错误码
+     * @return 写入的字节数
+     */
     ssize_t sslWrite(const void *data, size_t len, int *saveErrno);
 
 private:
-    EventLoop *loop_;        // 所属的EventLoop,通常是subLoop
-    const std::string name_; // 连接名称,用于标识和日志
-    std::atomic_int state_;  // 连接状态,原子变量保证线程安全
-    bool reading_;           // 是否正在读取数据,用于控制Channel的读事件关注
+    EventLoop *loop_;        // 所属的EventLoop，通常是subLoop
+    const std::string name_; // 连接名称，用于标识和日志
+    std::atomic_int state_;  // 连接状态，原子变量保证线程安全
+    bool reading_;           // 是否正在读取数据，用于控制Channel的读事件关注
 
     std::unique_ptr<Socket> socket_;   // 封装已连接的socket文件描述符
     std::unique_ptr<Channel> channel_; // 封装socket对应的事件Channel
@@ -258,19 +277,19 @@ private:
     // 用户设置的回调函数
     ConnectionCallback connectionCallback_;       // 连接建立/断开回调
     MessageCallback messageCallback_;             // 消息到达回调
-    WriteCompleteCallback writeCompleteCallback_; // 数据发送完毕回调(outputBuffer清空时)
+    WriteCompleteCallback writeCompleteCallback_; // 数据发送完毕回调（outputBuffer清空时）
     HighWaterMarkCallback highWaterMarkCallback_; // 输出缓冲区高水位回调
-    CloseCallback closeCallback_;                 // 连接关闭回调(通知TcpServer)
-    size_t highWaterMark_;                        // 高水位阈值,防止发送缓冲区无限增长
+    CloseCallback closeCallback_;                 // 连接关闭回调（通知TcpServer）
+    size_t highWaterMark_;                        // 高水位阈值，防止发送缓冲区无限增长
     TimerId idleTimerId_;                         // 空闲超时定时器ID
 
     // 数据缓冲区
-    Buffer inputBuffer_;  // 接收缓冲区,存储从socket读取的数据
-    Buffer outputBuffer_; // 发送缓冲区,存储待发送到socket的数据
+    Buffer inputBuffer_;  // 接收缓冲区，存储从socket读取的数据
+    Buffer outputBuffer_; // 发送缓冲区，存储待发送到socket的数据
     std::any context_;
 
     std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置对象的共享指针
 
-    // SSL/TLS 相关
+    // SSL/TLS相关
     std::unique_ptr<SSL, decltype(&SSL_free)> ssl_; // SSL对象
 };

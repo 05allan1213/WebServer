@@ -10,7 +10,11 @@
 namespace
 {
 
-    // 创建一个 timerfd
+    /**
+     * @brief 创建一个timerfd文件描述符
+     * @return timerfd文件描述符
+     * @details 使用CLOCK_MONOTONIC时钟，设置为非阻塞和close-on-exec
+     */
     int createTimerfd()
     {
         // CLOCK_MONOTONIC: 从系统启动开始计时,不受系统时间修改影响
@@ -24,7 +28,12 @@ namespace
         return timerfd;
     }
 
-    // 计算从现在到指定时间点的时间差
+    /**
+     * @brief 计算从现在到指定时间点的时间差
+     * @param when 目标时间点
+     * @return timespec结构体，表示时间差
+     * @details 计算时间差，最小间隔为100微秒
+     */
     struct timespec howMuchTimeFromNow(Timestamp when)
     {
         int64_t microseconds = when.microSecondsSinceEpoch() - Timestamp::now().microSecondsSinceEpoch();
@@ -38,7 +47,11 @@ namespace
         return ts;
     }
 
-    // 读取 timerfd,以清除其可读事件,防止 epoll 重复触发
+    /**
+     * @brief 读取timerfd，清除可读事件
+     * @param timerfd timerfd文件描述符
+     * @details 读取timerfd以清除其可读事件，防止epoll重复触发
+     */
     void readTimerfd(int timerfd)
     {
         uint64_t howmany;
@@ -50,7 +63,12 @@ namespace
         }
     }
 
-    // 重置 timerfd 的到期时间
+    /**
+     * @brief 重置timerfd的到期时间
+     * @param timerfd timerfd文件描述符
+     * @param expiration 新的到期时间
+     * @details 设置timerfd的到期时间为指定时间点
+     */
     void resetTimerfd(int timerfd, Timestamp expiration)
     {
         struct itimerspec newValue;
@@ -67,6 +85,11 @@ namespace
 
 }
 
+/**
+ * @brief 构造函数
+ * @param loop 所属的EventLoop指针
+ * @details 创建timerfd，设置Channel监听读事件
+ */
 TimerQueue::TimerQueue(EventLoop *loop)
     : loop_(loop),
       timerfd_(createTimerfd()),
@@ -80,7 +103,10 @@ TimerQueue::TimerQueue(EventLoop *loop)
     timerfdChannel_.enableReading();
 }
 
-// 析构函数：关闭 timerfd,自动释放所有定时器
+/**
+ * @brief 析构函数
+ * @details 关闭timerfd，清理Channel，自动释放所有定时器
+ */
 TimerQueue::~TimerQueue()
 {
     timerfdChannel_.disableAll();
@@ -89,7 +115,14 @@ TimerQueue::~TimerQueue()
     // unique_ptr 会自动释放管理的 Timer 对象
 }
 
-// 添加定时器(线程安全,自动切换到 IO 线程)
+/**
+ * @brief 添加定时器
+ * @param cb 定时器回调函数
+ * @param when 到期时间
+ * @param interval 重复间隔，0表示一次性定时器
+ * @return TimerId，用于后续取消定时器
+ * @details 线程安全，自动切换到IO线程执行
+ */
 TimerId TimerQueue::addTimer(TimerCallback cb, Timestamp when, double interval)
 {
     auto timer = std::make_unique<Timer>(std::move(cb), when, interval);
@@ -110,14 +143,22 @@ TimerId TimerQueue::addTimer(TimerCallback cb, Timestamp when, double interval)
     return timerId;
 }
 
-// 取消定时器(线程安全,自动切换到 IO 线程)
+/**
+ * @brief 取消定时器
+ * @param timerId 要取消的定时器ID
+ * @details 线程安全，自动切换到IO线程执行
+ */
 void TimerQueue::cancel(TimerId timerId)
 {
     loop_->runInLoop([this, timerId]
                      { this->cancelInLoop(timerId); });
 }
 
-// 实际添加定时器(只能在 IO 线程调用)
+/**
+ * @brief 在IO线程中添加定时器
+ * @param timer 要添加的定时器
+ * @details 只能在IO线程中调用，插入定时器并可能重置timerfd
+ */
 void TimerQueue::addTimerInLoop(std::unique_ptr<Timer> timer)
 {
     loop_->assertInLoopThread(); // 确保在正确的线程
@@ -130,7 +171,11 @@ void TimerQueue::addTimerInLoop(std::unique_ptr<Timer> timer)
     }
 }
 
-// 实际取消定时器(只能在 IO 线程调用)
+/**
+ * @brief 在IO线程中取消定时器
+ * @param timerId 要取消的定时器ID
+ * @details 只能在IO线程中调用，从定时器集合中移除指定定时器
+ */
 void TimerQueue::cancelInLoop(TimerId timerId)
 {
     loop_->assertInLoopThread();
@@ -160,7 +205,10 @@ void TimerQueue::cancelInLoop(TimerId timerId)
     assert(timers_.size() == activeTimers_.size());
 }
 
-// timerfd 读事件回调,处理所有到期定时器
+/**
+ * @brief 处理timerfd读事件
+ * @details 处理所有到期的定时器，执行回调函数，重置周期性定时器
+ */
 void TimerQueue::handleRead()
 {
     loop_->assertInLoopThread();
@@ -182,7 +230,12 @@ void TimerQueue::handleRead()
     reset(expired, now);
 }
 
-// 获取所有已到期的定时器,并移出 timers_
+/**
+ * @brief 获取所有已到期的定时器
+ * @param now 当前时间
+ * @return 已到期的定时器列表
+ * @details 从timers_中移除所有已到期的定时器并返回
+ */
 std::vector<TimerQueue::Entry> TimerQueue::getExpired(Timestamp now)
 {
     std::vector<Entry> expired;
@@ -209,7 +262,12 @@ std::vector<TimerQueue::Entry> TimerQueue::getExpired(Timestamp now)
     return expired;
 }
 
-// 重置周期性定时器,未被取消的重新插入
+/**
+ * @brief 重置周期性定时器
+ * @param expired 已到期的定时器列表
+ * @param now 当前时间
+ * @details 将未被取消的周期性定时器重新插入到定时器队列中
+ */
 void TimerQueue::reset(const std::vector<Entry> &expired, Timestamp now)
 {
     for (auto &it : expired)
@@ -233,7 +291,12 @@ void TimerQueue::reset(const std::vector<Entry> &expired, Timestamp now)
     }
 }
 
-// 插入新定时器,返回是否需要重置 timerfd
+/**
+ * @brief 插入新定时器
+ * @param timer 要插入的定时器
+ * @return 是否需要重置timerfd
+ * @details 将定时器插入到timers_和activeTimers_中，返回是否是最早到期的定时器
+ */
 bool TimerQueue::insert(std::unique_ptr<Timer> timer)
 {
     loop_->assertInLoopThread();

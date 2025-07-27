@@ -2,6 +2,13 @@
 
 #include "EventLoop.h"
 
+/**
+ * @brief 构造函数
+ * @param cb 线程初始化回调函数
+ * @param name 线程名称
+ * @param epollMode epoll模式，支持ET/LT
+ * @details 创建EventLoopThread对象，但不立即启动线程
+ */
 EventLoopThread::EventLoopThread(const ThreadInitCallback &cb, const std::string &name, const std::string &epollMode)
     : loop_(nullptr),
       exiting_(false),
@@ -13,6 +20,10 @@ EventLoopThread::EventLoopThread(const ThreadInitCallback &cb, const std::string
 {
 }
 
+/**
+ * @brief 析构函数
+ * @details 通知EventLoop退出循环，等待子线程结束
+ */
 EventLoopThread::~EventLoopThread()
 {
     exiting_ = true;
@@ -25,6 +36,11 @@ EventLoopThread::~EventLoopThread()
     }
 }
 
+/**
+ * @brief 启动EventLoop线程
+ * @return 子线程中创建的EventLoop指针
+ * @details 启动子线程，等待EventLoop创建完成，然后返回EventLoop指针
+ */
 EventLoop *EventLoopThread::startLoop()
 {
     // 1. 启动底层的新线程
@@ -44,7 +60,10 @@ EventLoop *EventLoopThread::startLoop()
     return loop;
 }
 
-// 下面这个方法,实在单独的子线程里面运行的
+/**
+ * @brief 线程函数，在子线程中运行
+ * @details 创建EventLoop对象，执行初始化回调，开始事件循环
+ */
 void EventLoopThread::threadFunc()
 {
     // 1. 创建 EventLoop 对象,支持 ET/LT

@@ -2,6 +2,9 @@
 #include "http/WebServer.h"
 #include "base/ConfigManager.h"
 #include "log/LogManager.h"
+#include <chrono>
+#include <future>
+#include <csignal>
 
 // --- 全局服务器实例 ---
 // 我们在所有基准测试之外启动一个服务器实例，以模拟真实运行环境。
@@ -77,14 +80,24 @@ int main(int argc, char **argv)
     ::benchmark::RunSpecifiedBenchmarks();
     ::benchmark::Shutdown();
 
-    // 5. 停止服务器并清理资源
+    // 5. 停止服务器并清理资源（添加超时机制）
     g_server->stop();
-    if (g_server_thread->joinable())
+
+    // 使用超时机制等待服务器线程结束
+    auto future = std::async(std::launch::async, [&]()
+                             {
+        if (g_server_thread->joinable()) {
+            g_server_thread->join();
+        } });
+
+    // 等待最多3秒
+    if (future.wait_for(std::chrono::seconds(3)) == std::future_status::timeout)
     {
-        g_server_thread->join();
+        // 强制退出，不等待线程
     }
 
     DLOG_FATAL << "基准测试完成。";
 
+    std::raise(SIGINT);
     return 0;
 }

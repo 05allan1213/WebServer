@@ -7,7 +7,12 @@
 #include "base/ConfigManager.h"
 #include "ssl/SSLContext.h"
 
-// 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
+/**
+ * @brief 检查EventLoop指针是否为空
+ * @param loop EventLoop指针
+ * @return 如果非空返回原指针，否则程序终止
+ * @details 强制要求传入的EventLoop指针不能为空，用于调试
+ */
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
 {
     if (loop == nullptr)
@@ -17,6 +22,15 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
     return loop;
 }
 
+/**
+ * @brief 构造函数
+ * @param loop 主EventLoop指针
+ * @param listenAddr 监听地址
+ * @param nameArg 服务器名称
+ * @param config 网络配置
+ * @param option 服务器选项
+ * @details 初始化TcpServer，创建Acceptor和线程池，设置新连接回调
+ */
 TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::string &nameArg,
                      std::shared_ptr<NetworkConfig> config, Option option)
     : loop_(CheckLoopNotNull(loop)),
@@ -51,6 +65,10 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
     DLOG_INFO << "TcpServer 构造函数完成 - 名称: " << name_;
 }
 
+/**
+ * @brief 析构函数
+ * @details 关闭所有连接，清理资源
+ */
 TcpServer::~TcpServer()
 {
     DLOG_INFO << "TcpServer 析构函数开始 - 名称: " << name_;
@@ -69,18 +87,33 @@ TcpServer::~TcpServer()
     DLOG_INFO << "TcpServer 析构函数完成 - 名称: " << name_;
 }
 
+/**
+ * @brief 启用SSL/TLS支持
+ * @param certPath 证书文件路径
+ * @param keyPath 私钥文件路径
+ * @details 创建SSLContext对象，为后续的SSL连接做准备
+ */
 void TcpServer::enableSSL(const std::string &certPath, const std::string &keyPath)
 {
     DLOG_INFO << "[TcpServer] 启用 SSL/TLS. 证书路径: " << certPath;
     sslContext_ = std::make_unique<SSLContext>(certPath, keyPath);
 }
 
+/**
+ * @brief 设置线程池线程数量
+ * @param numThreads 线程数量
+ * @details 设置IO线程池中的线程数量
+ */
 void TcpServer::setThreadNum(int numThreads)
 {
     DLOG_INFO << "TcpServer 设置线程数: " << numThreads;
     threadPool_->setThreadNum(numThreads);
 }
 
+/**
+ * @brief 启动服务器
+ * @details 启动线程池，开始监听连接请求
+ */
 void TcpServer::start()
 {
     DLOG_INFO << "TcpServer 启动开始 - 名称: " << name_ << ", 当前启动状态: " << started_;
@@ -98,6 +131,12 @@ void TcpServer::start()
     }
 }
 
+/**
+ * @brief 处理新连接
+ * @param sockfd 新连接的socket文件描述符
+ * @param peerAddr 对端地址
+ * @details 创建TcpConnection对象，设置回调函数，在IO线程中建立连接
+ */
 void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
 {
     EventLoop *ioLoop = threadPool_->getNextLoop();
@@ -126,12 +165,22 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
     ioLoop->runInLoop(std::bind(&TcpConnection::connectEstablished, conn));
 }
 
+/**
+ * @brief 移除连接
+ * @param conn 要移除的连接指针
+ * @details 在主线程中请求移除连接，实际移除操作在IO线程中执行
+ */
 void TcpServer::removeConnection(const TcpConnectionPtr &conn)
 {
     DLOG_INFO << "请求移除连接: " << conn->name();
     loop_->runInLoop(std::bind(&TcpServer::removeConnectionInLoop, this, conn));
 }
 
+/**
+ * @brief 在IO线程中移除连接
+ * @param conn 要移除的连接指针
+ * @details 从连接池中移除连接，并在IO线程中销毁连接对象
+ */
 void TcpServer::removeConnectionInLoop(const TcpConnectionPtr &conn)
 // 此方法总是在TCPServer所属的 mainLoop 线程中执行
 {

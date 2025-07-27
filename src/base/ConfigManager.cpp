@@ -36,7 +36,7 @@ void ConfigManager::load(const std::string &filename, unsigned int hotReloadInte
 
     if (hotReloadIntervalSeconds > 0)
     {
-        // 使用 call_once 来确保监控线程只被启动一次
+        // 使用call_once确保监控线程只被启动一次
         std::call_once(m_watcherFlag, [&]()
                        {
             hotReloading_ = true;
@@ -54,7 +54,7 @@ bool ConfigManager::loadInternal()
         lastWriteTime_ = std::filesystem::last_write_time(configFilename_);
 
         // 创建新的配置对象
-        auto newBaseConfig = std::make_shared<BaseConfig>(newRootNode); // BaseConfig 现在接收整个根节点
+        auto newBaseConfig = std::make_shared<BaseConfig>(newRootNode); // BaseConfig现在接收整个根节点
         auto newNetworkConfig = std::make_shared<NetworkConfig>(newRootNode["network"]);
         auto newLogConfig = std::make_shared<LogConfig>(newRootNode["log"]);
         auto newDBConfig = std::make_shared<DBConfig>(newRootNode["database"]);
@@ -71,7 +71,7 @@ bool ConfigManager::loadInternal()
     }
     catch (const std::exception &e)
     {
-        // 使用 DLOG 和 cerr 双重保障，确保错误信息一定能被看到
+        // 使用DLOG和cerr双重保障，确保错误信息一定能被看到
         std::string errMsg = "[ConfigManager] 解析配置文件 '" + configFilename_ + "' 失败: " + e.what();
         DLOG_ERROR << errMsg;
         std::cerr << errMsg << std::endl;
@@ -84,10 +84,10 @@ void ConfigManager::watchConfigFile(unsigned int intervalSeconds)
     while (hotReloading_)
     {
         std::unique_lock<std::mutex> lock(m_watcherMutex);
-        // 它会等待 intervalSeconds 秒，或者被提前唤醒
+        // 等待intervalSeconds秒，或者被提前唤醒
         m_watcherCond.wait_for(lock, std::chrono::seconds(intervalSeconds));
 
-        if (!hotReloading_) // 检查是否是被 shutdown 唤醒的
+        if (!hotReloading_) // 检查是否是被shutdown唤醒的
         {
             break;
         }
@@ -101,23 +101,24 @@ void ConfigManager::watchConfigFile(unsigned int intervalSeconds)
             }
 
             auto currentWriteTime = std::filesystem::last_write_time(configFilename_);
-            if (currentWriteTime != lastWriteTime_)
+            if (currentWriteTime > lastWriteTime_)
             {
-                DLOG_INFO << "[ConfigManager] 检测到配置文件 '" << configFilename_ << "' 已更新, 准备热重载...";
+                DLOG_INFO << "[ConfigManager] 检测到配置文件变化，开始重新加载...";
                 if (loadInternal())
                 {
-                    DLOG_INFO << "[ConfigManager] 配置热重载成功!";
-                    notifyUpdate(); // 通知所有订阅者
+                    lastWriteTime_ = currentWriteTime;
+                    notifyUpdate();
+                    DLOG_INFO << "[ConfigManager] 配置文件重新加载成功";
                 }
                 else
                 {
-                    DLOG_ERROR << "[ConfigManager] 配置热重载失败, 继续使用旧配置";
+                    DLOG_ERROR << "[ConfigManager] 配置文件重新加载失败";
                 }
             }
         }
-        catch (const std::filesystem::filesystem_error &e)
+        catch (const std::exception &e)
         {
-            DLOG_ERROR << "[ConfigManager] 监控配置文件时出错: " << e.what();
+            DLOG_ERROR << "[ConfigManager] 监控配置文件时发生异常: " << e.what();
         }
     }
 }
@@ -134,34 +135,33 @@ void ConfigManager::unregisterUpdateCallback(const std::string &name)
     updateCallbacks_.erase(name);
 }
 
-void ConfigManager::shutdown()
+void ConfigManager::notifyUpdate()
 {
-    hotReloading_ = false;
-    m_watcherCond.notify_all();
-    if (watcherThread_.joinable())
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    for (const auto &pair : updateCallbacks_)
     {
-        watcherThread_.join();
-        std::cout << "[ConfigManager] 监控线程已停止。" << std::endl;
+        try
+        {
+            pair.second();
+        }
+        catch (const std::exception &e)
+        {
+            DLOG_ERROR << "[ConfigManager] 执行配置更新回调 '" << pair.first << "' 时发生异常: " << e.what();
+        }
     }
 }
 
-void ConfigManager::notifyUpdate()
+void ConfigManager::shutdown()
 {
-    std::vector<ConfigUpdateCallback> callbacks;
+    if (hotReloading_)
     {
-        std::lock_guard<std::mutex> lock(callbackMutex_);
-        for (const auto &pair : updateCallbacks_)
+        hotReloading_ = false;
+        m_watcherCond.notify_all();
+        if (watcherThread_.joinable())
         {
-            callbacks.push_back(pair.second);
+            watcherThread_.join();
         }
-    }
-
-    for (const auto &cb : callbacks)
-    {
-        if (cb)
-        {
-            cb(); // 执行回调
-        }
+        DLOG_INFO << "[ConfigManager] 热重载监控已停止";
     }
 }
 

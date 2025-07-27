@@ -5,12 +5,13 @@
 class Buffer; // 前向声明
 
 /**
- * @brief HTTP请求解析器,负责将原始数据流解析为HttpRequest对象
+ * @brief HTTP请求解析器，负责将原始数据流解析为HttpRequest对象
  *
  * 用法：
- * 1. 每个连接分配一个HttpParser实例,持续复用
- * 2. 调用parseRequest驱动解析,支持分段数据
+ * 1. 每个连接分配一个HttpParser实例，持续复用
+ * 2. 调用parseRequest驱动解析，支持分段数据
  * 3. 解析完成后可通过request()获取请求对象
+ * 4. 支持分块传输编码的解析
  */
 class HttpParser
 {
@@ -31,12 +32,12 @@ public:
     };
 
     /**
-     * @brief 构造函数,初始化解析状态
+     * @brief 构造函数，初始化解析状态
      */
     HttpParser();
 
     /**
-     * @brief 重置解析器状态,准备解析下一个请求
+     * @brief 重置解析器状态，准备解析下一个请求
      */
     void reset();
 
@@ -45,7 +46,8 @@ public:
      * @param buf 输入缓冲区
      * @return 解析是否成功
      *
-     * 支持分段数据,自动维护状态机。
+     * 支持分段数据，自动维护状态机。
+     * 支持分块传输编码的解析。
      */
     bool parseRequest(Buffer *buf);
 
@@ -56,14 +58,14 @@ public:
     bool gotAll() const { return state_ == HttpRequestParseState::kGotAll; }
 
     /**
-     * @brief 获取解析得到的HttpRequest对象
-     * @return const引用,包含请求所有信息
+     * @brief 获取解析得到的HttpRequest对象（const版本）
+     * @return const引用，包含请求所有信息
      */
     const HttpRequest &request() const { return request_; }
 
     /**
-     * @brief 获取解析得到的HttpRequest对象
-     * @return 引用,包含请求所有信息
+     * @brief 获取解析得到的HttpRequest对象（非const版本）
+     * @return 引用，包含请求所有信息
      */
     HttpRequest *getMutableRequest() { return &request_; }
 
@@ -71,7 +73,7 @@ private:
     /**
      * @brief 解析请求行
      * @param begin 起始指针
-     * @param end   结束指针
+     * @param end 结束指针
      * @return 是否解析成功
      */
     bool parseRequestLine(const char *begin, const char *end);

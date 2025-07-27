@@ -12,6 +12,12 @@ const int kAdded = 1;
 // channel从poller中删除(逻辑删除,epoll可能已移除监听)
 const int kDeleted = 2;
 
+/**
+ * @brief 构造函数
+ * @param loop 所属的EventLoop指针
+ * @param epollMode epoll模式，支持ET/LT
+ * @details 创建epoll实例，初始化事件列表，验证epoll模式
+ */
 EPollPoller::EPollPoller(EventLoop *loop, const std::string &epollMode)
     : Poller(loop),
       epollfd_(::epoll_create1(EPOLL_CLOEXEC)),
@@ -31,12 +37,23 @@ EPollPoller::EPollPoller(EventLoop *loop, const std::string &epollMode)
     DLOG_INFO << "EPollPoller: epollMode=" << epollMode_;
 }
 
+/**
+ * @brief 析构函数
+ * @details 关闭epoll文件描述符
+ */
 EPollPoller::~EPollPoller()
 {
     // 关闭 epoll 实例的文件描述符
     ::close(epollfd_);
 }
 
+/**
+ * @brief 等待事件发生
+ * @param timeoutMs 超时时间（毫秒）
+ * @param activeChannels 输出参数，活跃的Channel列表
+ * @return 事件发生的时间戳
+ * @details 调用epoll_wait等待事件，处理就绪事件并填充活跃Channel列表
+ */
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
 {
     // 在高并发场景下,用LOG_DEBUG输出日志更为合理
@@ -77,8 +94,12 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
     return now;
 }
 
-// Channel update/remove -> EventLoop updateChannel/removeChannel -> Poller update/removeChannel
-// 更新 Channel 在 epoll 中的监听状态
+/**
+ * @brief 更新Channel在epoll中的监听状态
+ * @param channel 要更新的Channel指针
+ * @details 根据Channel的状态决定是添加、修改还是删除epoll监听
+ * Channel update/remove -> EventLoop updateChannel/removeChannel -> Poller update/removeChannel
+ */
 void EPollPoller::updateChannel(Channel *channel)
 {
     const int index = channel->index();
@@ -118,7 +139,11 @@ void EPollPoller::updateChannel(Channel *channel)
     }
 }
 
-// 从 epoll 中移除对 Channel 的监听,并从 Poller 管理中删除。
+/**
+ * @brief 从epoll中移除Channel
+ * @param channel 要移除的Channel指针
+ * @details 从Poller管理中删除Channel，并从epoll中移除监听
+ */
 void EPollPoller::removeChannel(Channel *channel)
 {
     int fd = channel->fd();
@@ -138,7 +163,12 @@ void EPollPoller::removeChannel(Channel *channel)
     channel->set_index(kDeleted);
 }
 
-// 遍历 epoll_wait 返回的就绪事件,填充 activeChannels 列表
+/**
+ * @brief 填充活跃Channel列表
+ * @param numEvents 事件数量
+ * @param activeChannels 输出参数，活跃Channel列表
+ * @details 遍历epoll_wait返回的就绪事件，将对应的Channel添加到活跃列表
+ */
 void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const
 {
     for (int i = 0; i < numEvents; ++i)
@@ -152,7 +182,12 @@ void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels)
     }
 }
 
-// 实际调用 epoll_ctl 来执行添加、修改或删除操作
+/**
+ * @brief 执行epoll_ctl操作
+ * @param operation epoll操作类型（ADD/MOD/DEL）
+ * @param channel 要操作的Channel指针
+ * @details 实际调用epoll_ctl系统调用，设置事件掩码和关联数据
+ */
 void EPollPoller::update(int operation, Channel *channel)
 {
     epoll_event event;

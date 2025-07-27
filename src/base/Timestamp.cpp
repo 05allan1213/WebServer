@@ -1,6 +1,6 @@
 #include "base/Timestamp.h"
 #include <ctime>
-#include <cstdio> // for snprintf
+#include <cstdio>
 
 // 必须在 .cpp 文件中,如果在头文件中,每个包含它的文件都会有一个副本
 static_assert(sizeof(Timestamp) == sizeof(int64_t), "Timestamp should be int64_t");
@@ -26,7 +26,7 @@ std::string Timestamp::toFormattedString(bool showMicroseconds) const
     char buf[64] = {0};
     time_t seconds = static_cast<time_t>(microSecondsSinceEpoch_ / kMicroSecondsPerSecond);
     struct tm tm_time;
-    // 使用线程安全的 localtime_r
+    // 使用线程安全的localtime_r
     localtime_r(&seconds, &tm_time);
 
     if (showMicroseconds)

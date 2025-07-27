@@ -32,13 +32,20 @@ include(GoogleTest)
 
 # --- 编译项目核心库 ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/include/base)
+include_directories(${PROJECT_SOURCE_DIR}/include/log)
+include_directories(${PROJECT_SOURCE_DIR}/include/net)
+include_directories(${PROJECT_SOURCE_DIR}/include/http)
+include_directories(${PROJECT_SOURCE_DIR}/include/db)
+include_directories(${PROJECT_SOURCE_DIR}/include/ssl)
+include_directories(${PROJECT_SOURCE_DIR}/include/websocket)
 add_subdirectory(src)
 
 # --- 主应用程序 ---
 add_executable(webserver src/main.cpp)
 target_link_libraries(webserver 
     PRIVATE 
-    base log net http db ssl websocket
+    webserver_lib
     yaml-cpp::yaml-cpp 
     jwt-cpp::jwt-cpp 
     mysqlclient
@@ -54,7 +61,7 @@ file(GLOB_RECURSE TEST_SOURCES
 add_executable(webserver_test ${TEST_SOURCES})
 target_link_libraries(webserver_test 
     PRIVATE 
-    base log net http db ssl websocket
+    webserver_lib
     GTest::gtest_main
     yaml-cpp::yaml-cpp 
     jwt-cpp::jwt-cpp 
@@ -69,7 +76,7 @@ add_test(NAME WebServerUnitTests COMMAND webserver_test)
 add_executable(webserver_bench src/tests/benchmark_server.cpp)
 target_link_libraries(webserver_bench
     PRIVATE
-    base log net http db ssl websocket
+    webserver_lib
     benchmark::benchmark 
     yaml-cpp::yaml-cpp
     jwt-cpp::jwt-cpp

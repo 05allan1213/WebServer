@@ -8,7 +8,11 @@
 #include "InetAddress.h"
 #include "log/Log.h"
 
-// 创建非阻塞的socket文件描述符
+/**
+ * @brief 创建非阻塞的socket文件描述符
+ * @return 新创建的socket文件描述符
+ * @details 创建一个非阻塞的TCP socket，设置SOCK_NONBLOCK和SOCK_CLOEXEC标志
+ */
 static int createNonblocking()
 {
     int sockfd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -19,6 +23,13 @@ static int createNonblocking()
     return sockfd;
 }
 
+/**
+ * @brief 构造函数
+ * @param loop 所属的EventLoop指针
+ * @param listenAddr 监听的地址
+ * @param reuseport 是否启用端口复用
+ * @details 初始化Acceptor对象，创建监听socket，设置socket选项，绑定地址
+ */
 Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport)
     : loop_(loop),
       // 创建socket文件描述符
@@ -35,6 +46,10 @@ Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reusepor
     acceptChannel_.setReadCallback(std::bind(&Acceptor::handleRead, this));
 }
 
+/**
+ * @brief 析构函数
+ * @details 清理资源，禁用Channel的所有事件并从Poller中移除
+ */
 Acceptor::~Acceptor()
 {
     // 将 Channel 的所有事件置为无效
@@ -43,6 +58,10 @@ Acceptor::~Acceptor()
     acceptChannel_.remove();
 }
 
+/**
+ * @brief 开始监听连接请求
+ * @details 启动监听socket，开始接受新的连接请求
+ */
 void Acceptor::listen()
 {
     listenning_ = true;
@@ -52,6 +71,10 @@ void Acceptor::listen()
     acceptChannel_.enableReading();
 }
 
+/**
+ * @brief 处理新连接请求
+ * @details 当监听socket可读时调用，接受新的连接并调用回调函数处理
+ */
 void Acceptor::handleRead()
 {
     InetAddress peerAddr;

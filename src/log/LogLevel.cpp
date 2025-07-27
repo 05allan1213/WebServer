@@ -10,6 +10,7 @@ std::string LogLevelToString(Level level)
 {
     switch (level)
     {
+        // 使用宏技巧减少重复代码，将枚举值转换为字符串
 #define XX(name)      \
     case Level::name: \
         return #name;

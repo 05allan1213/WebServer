@@ -85,36 +85,35 @@ bool HttpRequest::setMethod(const std::string &m)
 void HttpRequest::addHeader(const char *start, const char *colon, const char *end)
 {
     std::string field(start, colon);
-    // Trim leading and trailing spaces from field
+    // 去除字段名前后的空白字符
     field.erase(0, field.find_first_not_of(" \t"));
     field.erase(field.find_last_not_of(" \t") + 1);
-    // **
-    // * 将header的key转为小写，实现大小写不敏感
-    // **
+
+    // 将header的key转为小写，实现大小写不敏感
     std::transform(field.begin(), field.end(), field.begin(), ::tolower);
 
-    // Trim leading spaces from value
+    // 去除值前面的空白字符
     ++colon;
     while (colon < end && isspace(*colon))
     {
         ++colon;
     }
+
     std::string value(colon, end);
-    // Trim trailing spaces from value
-    value.erase(value.find_last_not_of(" \t") + 1);
+    // 去除值后面的空白字符
+    value.erase(value.find_last_not_of(" \t\r\n") + 1);
 
     headers_[field] = value;
-    DLOG_DEBUG << "[HttpRequest] addHeader: '" << field << "' = '" << value << "'";
+    DLOG_DEBUG << "[HttpRequest] addHeader: " << field << ": " << value;
 }
 
-std::optional<std::string> HttpRequest::getHeader(const std::string &field) const
+std::optional<std::string> HttpRequest::getHeader(const std::string &key) const
 {
-    std::string lower_field = field;
-    // **
-    // * 将要查找的key也转为小写
-    // **
-    std::transform(lower_field.begin(), lower_field.end(), lower_field.begin(), ::tolower);
-    auto it = headers_.find(lower_field);
+    std::string lowerKey = key;
+    // 转换为小写以支持大小写不敏感的查找
+    std::transform(lowerKey.begin(), lowerKey.end(), lowerKey.begin(), ::tolower);
+
+    auto it = headers_.find(lowerKey);
     if (it != headers_.end())
     {
         return it->second;
@@ -130,12 +129,12 @@ const char *HttpRequest::getMethodString() const
         return "GET";
     case Method::kPost:
         return "POST";
+    case Method::kHead:
+        return "HEAD";
     case Method::kPut:
         return "PUT";
     case Method::kDelete:
         return "DELETE";
-    case Method::kHead:
-        return "HEAD";
     default:
         return "INVALID";
     }
@@ -145,11 +144,11 @@ void HttpRequest::swap(HttpRequest &that)
 {
     std::swap(method_, that.method_);
     std::swap(version_, that.version_);
-    path_.swap(that.path_);
-    query_.swap(that.query_);
-    body_.swap(that.body_);
-    headers_.swap(that.headers_);
-    params_.swap(that.params_);
+    std::swap(path_, that.path_);
+    std::swap(query_, that.query_);
+    std::swap(headers_, that.headers_);
+    std::swap(body_, that.body_);
+    std::swap(params_, that.params_);
     std::swap(user_id_, that.user_id_);
     std::swap(context_, that.context_);
 }

@@ -13,31 +13,34 @@ HttpResponse::HttpResponse(bool close)
 /**
  * @brief 将HTTP响应序列化到缓冲区
  *
- * 按照HTTP协议格式，将响应状态行、头部、空行、消息体依次写入缓冲区
+ * 按照HTTP协议格式，将响应状态行、头部、空行、消息体依次写入缓冲区。
+ * 支持分块传输编码和连接管理。
  *
  * @param output 输出缓冲区
  */
 void HttpResponse::appendToBuffer(Buffer *output) const
 {
     char buf[32];
-    // 1. 添加状态行
+    // 1. 添加状态行：HTTP/1.1 状态码 状态消息
     snprintf(buf, sizeof(buf), "HTTP/1.1 %d ", statusCode_);
     output->append(buf, strlen(buf));
     output->append(statusMessage_.c_str(), statusMessage_.size());
     output->append("\r\n", 2);
 
-    // 2. 添加头部
+    // 2. 添加头部字段
     if (chunked_)
     {
+        // 分块传输编码，设置Transfer-Encoding头部
         output->append("Transfer-Encoding: chunked\r\n", 25);
     }
     else
     {
+        // 普通传输，设置Content-Length头部
         snprintf(buf, sizeof(buf), "Content-Length: %zd\r\n", body_.size());
         output->append(buf, strlen(buf));
     }
 
-    // 检查用户是否已经设置了 Connection 头
+    // 检查用户是否已经设置了Connection头部
     bool connectionHeaderSet = false;
     for (const auto &header : headers_)
     {
@@ -48,7 +51,7 @@ void HttpResponse::appendToBuffer(Buffer *output) const
         }
     }
 
-    // 只有在用户没有设置的情况下，才添加默认的 Connection 头
+    // 只有在用户没有设置的情况下，才添加默认的Connection头部
     if (!connectionHeaderSet)
     {
         if (closeConnection_)
@@ -61,6 +64,7 @@ void HttpResponse::appendToBuffer(Buffer *output) const
         }
     }
 
+    // 添加所有自定义头部字段
     for (const auto &header : headers_)
     {
         output->append(header.first.c_str(), header.first.size());
@@ -72,21 +76,25 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     // 头部和Body之间的空行
     output->append("\r\n", 2);
 
-    // 3. 添加Body
+    // 3. 添加消息体
     if (chunked_)
     {
+        // 分块传输编码格式
         if (!body_.empty())
         {
+            // 添加分块大小（十六进制）
             snprintf(buf, sizeof(buf), "%zx\r\n", body_.size());
             output->append(buf, strlen(buf));
+            // 添加分块数据
             output->append(body_.c_str(), body_.size());
             output->append("\r\n", 2);
         }
-        // 结束块
+        // 添加结束块（0\r\n\r\n）
         output->append("0\r\n\r\n", 5);
     }
     else
     {
+        // 普通传输，直接添加消息体
         output->append(body_.c_str(), body_.size());
     }
 }

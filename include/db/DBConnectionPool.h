@@ -15,7 +15,9 @@
 
 /**
  * @brief 数据库连接对象封装
+ *
  * 封装MYSQL*和空闲时间戳，用于连接池管理。
+ * 提供连接状态跟踪和空闲时间计算功能。
  */
 class Connection
 {
@@ -26,6 +28,7 @@ public:
      */
     Connection(MYSQL *conn)
         : m_conn(conn), m_aliveTime(std::chrono::steady_clock::now()) {}
+
     /**
      * @brief 刷新空闲起始时间
      */
@@ -33,8 +36,9 @@ public:
     {
         m_aliveTime = std::chrono::steady_clock::now();
     }
+
     /**
-     * @brief 获取空闲时长(秒)
+     * @brief 获取空闲时长（秒）
      * @return 空闲秒数
      */
     long long getIdleTime() const
@@ -43,13 +47,16 @@ public:
                    std::chrono::steady_clock::now() - m_aliveTime)
             .count();
     }
+
     MYSQL *m_conn;                                     // MySQL连接句柄
     std::chrono::steady_clock::time_point m_aliveTime; // 空闲起始时间
 };
 
 /**
  * @brief 数据库连接池，线程安全的MySQL连接池单例
+ *
  * 支持自动回收、健康检查、自动重连等功能。
+ * 使用生产者-消费者模式管理连接，提供高效的连接复用。
  */
 class DBConnectionPool
 {
@@ -82,6 +89,9 @@ public:
      */
     void releaseConnection(Connection *conn);
 
+    /**
+     * @brief 关闭连接池，释放所有资源
+     */
     void shutdown();
 
 private:
@@ -89,6 +99,7 @@ private:
      * @brief 构造函数
      */
     DBConnectionPool();
+
     /**
      * @brief 析构函数，释放所有连接
      */
@@ -112,8 +123,8 @@ private:
     int m_port;              // 数据库端口号
     unsigned int m_initSize; // 连接池初始连接数
     unsigned int m_maxSize;  // 连接池最大连接数
-    int m_maxIdleTime;       // 最大空闲时间(秒)
-    int m_connectionTimeout; // 获取连接超时时间(毫秒)
+    int m_maxIdleTime;       // 最大空闲时间（秒）
+    int m_connectionTimeout; // 获取连接超时时间（毫秒）
 
     std::queue<Connection *> m_connectionQueue; // 存储空闲连接的队列
     std::mutex m_queueMutex;                    // 保护连接队列的互斥锁
@@ -130,14 +141,16 @@ private:
 
 /**
  * @brief 数据库连接的RAII封装类
+ *
  * 自动获取和释放数据库连接，防止忘记释放导致的连接泄漏。
+ * 使用RAII模式确保资源的自动管理。
  */
 class ConnectionRAII
 {
 public:
     /**
      * @brief 构造，自动从池获取连接
-     * @param conn [out] 获取到的连接指针
+     * @param conn 获取到的连接指针
      * @param pool 连接池指针
      */
     ConnectionRAII(Connection **conn, DBConnectionPool *pool)
@@ -150,6 +163,7 @@ public:
         m_conn = *conn;
         m_pool = pool;
     }
+
     /**
      * @brief 析构，自动归还连接
      */

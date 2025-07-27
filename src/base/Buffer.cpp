@@ -6,10 +6,11 @@
 #include <unistd.h>
 #include <cstring>
 
-std::atomic<size_t> Buffer::activeBuffers{0};
-std::atomic<size_t> Buffer::poolMemory{0};
-std::atomic<size_t> Buffer::heapMemory{0};
-std::atomic<size_t> Buffer::resizeCount{0};
+// 静态成员变量定义
+std::atomic<size_t> Buffer::activeBuffers{0}; // 活跃缓冲区数量
+std::atomic<size_t> Buffer::poolMemory{0};    // 内存池使用量
+std::atomic<size_t> Buffer::heapMemory{0};    // 堆内存使用量
+std::atomic<size_t> Buffer::resizeCount{0};   // 扩容次数
 
 Buffer::Buffer(size_t initialSize)
     : readerIndex_(kCheapPrepend), writerIndex_(kCheapPrepend), fromPool_(true)

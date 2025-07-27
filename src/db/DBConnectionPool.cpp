@@ -5,7 +5,7 @@
 #include "db/DBConfig.h"
 
 /**
- * @brief 获取连接池单例实例(Meyers' Singleton)
+ * @brief 获取连接池单例实例（Meyers' Singleton）
  * @return 连接池单例指针
  */
 DBConnectionPool *DBConnectionPool::getInstance()
@@ -24,7 +24,7 @@ DBConnectionPool::DBConnectionPool() : m_connectionCount(0), m_isStop(false) {}
  */
 DBConnectionPool::~DBConnectionPool()
 {
-    // 析构函数调用 shutdown 作为保障
+    // 析构函数调用shutdown作为保障
     if (!m_isStop)
     {
         shutdown();
@@ -37,7 +37,7 @@ DBConnectionPool::~DBConnectionPool()
  */
 void DBConnectionPool::init(const DBConfig &config)
 {
-    // 使用 call_once 来确保初始化逻辑（特别是线程创建）只执行一次
+    // 使用call_once确保初始化逻辑（特别是线程创建）只执行一次
     std::call_once(m_initFlag, [&]()
                    {
         DLOG_INFO << "[DBPool] init() called for the first time.";
@@ -202,6 +202,7 @@ void DBConnectionPool::shutdown()
 
 /**
  * @brief 扫描并回收空闲连接的线程函数
+ *
  * 超过最大空闲时间的多余连接会被释放。
  */
 void DBConnectionPool::scannerConnectionTask()
@@ -209,11 +210,11 @@ void DBConnectionPool::scannerConnectionTask()
     while (!m_isStop)
     {
         std::unique_lock<std::mutex> lock(m_queueMutex);
-        // 使用 wait_for 替代 sleep_for。
-        // 它会等待 m_maxIdleTime 秒，或者被 m_cond.notify_all() 提前唤醒。
+        // 使用wait_for替代sleep_for
+        // 它会等待m_maxIdleTime秒，或者被m_cond.notify_all()提前唤醒
         m_cond.wait_for(lock, std::chrono::seconds(m_maxIdleTime));
 
-        // 线程被唤醒后（无论是超时还是被通知），首先检查是否需要停止。
+        // 线程被唤醒后（无论是超时还是被通知），首先检查是否需要停止
         if (m_isStop)
         {
             break;

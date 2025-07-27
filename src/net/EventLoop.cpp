@@ -20,7 +20,11 @@ __thread EventLoop *t_loopInThisThread = nullptr;
 // 定义默认的IO复用调用的超时时间
 const int kPollTimeMs = 10000; // 默认10s
 
-// 创建wakeupfd,用来notify唤醒subReactor处理新来的channel
+/**
+ * @brief 创建事件文件描述符
+ * @return 成功返回文件描述符，失败返回-1
+ * @note 用于线程间通信，唤醒事件循环
+ */
 int createEventFd()
 {
     int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -34,6 +38,11 @@ int createEventFd()
 std::atomic<EventLoop *> EventLoop::mainLoop_{nullptr};
 std::atomic_bool EventLoop::signalRegistered_{false};
 
+/**
+ * @brief 构造函数
+ * @param epollMode epoll模式
+ * @note 初始化事件循环，设置wakeup通道，注册信号处理器
+ */
 EventLoop::EventLoop(const std::string &epollMode)
     : looping_(false),
       quit_(false),
@@ -63,6 +72,10 @@ EventLoop::EventLoop(const std::string &epollMode)
     registerSignalHandlerOnce(this);
 }
 
+/**
+ * @brief 析构函数
+ * @note 清理资源，关闭wakeup文件描述符
+ */
 EventLoop::~EventLoop()
 {
     wakeupChannel_->disableAll();
@@ -71,7 +84,10 @@ EventLoop::~EventLoop()
     t_loopInThisThread = nullptr;
 }
 
-// 开启事件循环
+/**
+ * @brief 开启事件循环
+ * @note 主循环，处理IO事件和定时器事件
+ */
 void EventLoop::loop()
 {
     looping_ = true;
@@ -97,7 +113,10 @@ void EventLoop::loop()
     looping_ = false;
 }
 
-// 退出事件循环   1.loop在自己的线程中调用quit  2.在非loop的线程中,调用loop的quit
+/**
+ * @brief 退出事件循环
+ * @note 支持两种调用方式：1.在loop自己的线程中调用quit 2.在非loop的线程中调用loop的quit
+ */
 void EventLoop::quit()
 {
     quit_ = true;
@@ -109,7 +128,11 @@ void EventLoop::quit()
     // 在loop自身线程调用quit,说明此时线程正在处理事件,处理完直接退出循环
 }
 
-// 在当前loop中执行cb
+/**
+ * @brief 在当前loop中执行回调函数
+ * @param cb 要执行的回调函数
+ * @note 如果当前线程就是loop线程，直接执行；否则加入队列
+ */
 void EventLoop::runInLoop(Functor cb)
 {
     if (isInLoopThread())
@@ -122,7 +145,11 @@ void EventLoop::runInLoop(Functor cb)
     }
 }
 
-// 把cb放入队列,唤醒loop所在的线程,执行cb
+/**
+ * @brief 将回调函数放入队列，唤醒loop所在线程执行
+ * @param cb 要执行的回调函数
+ * @note 通过wakeup机制确保回调在正确的线程中执行
+ */
 void EventLoop::queueInLoop(Functor cb)
 {
     {
@@ -141,6 +168,10 @@ void EventLoop::queueInLoop(Functor cb)
     }
 }
 
+/**
+ * @brief 处理wakeup文件描述符的读事件
+ * @note 读取eventfd数据，清空缓冲区
+ */
 void EventLoop::handleRead()
 {
     uint64_t one = 1;
@@ -151,7 +182,10 @@ void EventLoop::handleRead()
     }
 }
 
-// 唤醒loop所在线程
+/**
+ * @brief 唤醒loop所在线程
+ * @note 利用 eventfd 的特性,写操作会使其变为可读,从而被 Poller 检测到
+ */
 void EventLoop::wakeup()
 {
     uint64_t one = 1;
@@ -164,13 +198,29 @@ void EventLoop::wakeup()
 }
 
 // EventLoop的方法 -> Poller的方法
+/**
+ * @brief 更新通道
+ * @param channel 要更新的通道
+ */
 void EventLoop::updateChannel(Channel *channel) { poller_->updateChannel(channel); }
 
+/**
+ * @brief 移除通道
+ * @param channel 要移除的通道
+ */
 void EventLoop::removeChannel(Channel *channel) { poller_->removeChannel(channel); }
 
+/**
+ * @brief 检查是否包含指定通道
+ * @param channel 要检查的通道
+ * @return 如果包含返回true，否则返回false
+ */
 bool EventLoop::hasChannel(Channel *channel) { return poller_->hasChannel(channel); }
 
-// 执行回调
+/**
+ * @brief 执行待处理的回调函数
+ * @note 通过swap操作高效地处理回调队列，减少锁持有时间
+ */
 void EventLoop::doPendingFunctors()
 {
     std::vector<Functor> functors;  // 1. 创建一个局部的临时 vector
@@ -192,6 +242,11 @@ void EventLoop::doPendingFunctors()
     callingPendingFunctors_ = false; // 5. 清除标志位,表示处理完毕
 }
 
+/**
+ * @brief 注册信号处理器（仅注册一次）
+ * @param loop 主事件循环指针
+ * @note 注册SIGINT和SIGTERM信号处理，支持优雅退出
+ */
 void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
 {
     if (!signalRegistered_.exchange(true))
@@ -203,6 +258,11 @@ void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
     }
 }
 
+/**
+ * @brief 信号处理函数
+ * @param signo 信号编号
+ * @note 收到信号时优雅退出主事件循环
+ */
 void EventLoop::signalHandler(int signo)
 {
     if (mainLoop_)
@@ -213,28 +273,54 @@ void EventLoop::signalHandler(int signo)
 }
 
 // 定时器相关接口实现
+/**
+ * @brief 在指定时间运行定时器
+ * @param time 运行时间
+ * @param cb 回调函数
+ * @return 定时器ID
+ */
 TimerId EventLoop::runAt(Timestamp time, std::function<void()> cb)
 {
     return timerQueue_->addTimer(std::move(cb), time, 0.0);
 }
 
+/**
+ * @brief 延迟指定时间后运行定时器
+ * @param delay 延迟时间（秒）
+ * @param cb 回调函数
+ * @return 定时器ID
+ */
 TimerId EventLoop::runAfter(double delay, std::function<void()> cb)
 {
     Timestamp time(addTime(Timestamp::now(), delay));
     return runAt(time, std::move(cb));
 }
 
+/**
+ * @brief 周期性运行定时器
+ * @param interval 间隔时间（秒）
+ * @param cb 回调函数
+ * @return 定时器ID
+ */
 TimerId EventLoop::runEvery(double interval, std::function<void()> cb)
 {
     Timestamp time(addTime(Timestamp::now(), interval));
     return timerQueue_->addTimer(std::move(cb), time, interval);
 }
 
+/**
+ * @brief 取消定时器
+ * @param timerId 定时器ID
+ */
 void EventLoop::cancel(TimerId timerId)
 {
     return timerQueue_->cancel(timerId);
 }
 
+/**
+ * @brief 断言当前线程是事件循环线程
+ * @note 如果不是事件循环线程则终止程序
+ */
 void EventLoop::assertInLoopThread()
 {
     if (!isInLoopThread())

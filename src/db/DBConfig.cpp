@@ -7,7 +7,7 @@ DBConfig::DBConfig(const YAML::Node &node) : node_(node)
     DLOG_INFO << "[DBConfig] 开始解析 'database' 配置...";
     try
     {
-        // 先通过 getter 从 YAML 节点加载数据到成员变量
+        // 先通过getter从YAML节点加载数据到成员变量
         m_host = getHost();
         m_user = getUser();
         m_password = getPassword();

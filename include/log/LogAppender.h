@@ -13,23 +13,23 @@
 #include <fstream>
 
 /**
- * @brief 异步输出函数,供FileLogAppender调用
- * 将日志内容异步写入目标位置
+ * @brief 异步输出函数
  * @param msg 日志消息
  * @param len 消息长度
+ * @details 将日志内容异步写入目标位置，供FileLogAppender调用
  */
 extern void asyncOutput(const char *msg, int len);
 
 /**
  * @brief 全局异步输出函数指针
- * 用于在测试或运行时动态替换异步输出实现
+ * @details 用于在测试或运行时动态替换异步输出实现
  */
 extern void (*g_asyncOutputFunc)(const char *msg, int len);
 
 /**
  * @brief 日志输出器基类
+ * @details LogAppender负责将日志事件输出到目标位置（如控制台、文件等）
  *
- * LogAppender负责将日志事件输出到目标位置(如控制台、文件等)。
  * 每个输出器可以有自己的日志级别、格式器和过滤器。
  */
 class LogAppender : noncopyable
@@ -43,9 +43,10 @@ public:
     virtual ~LogAppender() {}
 
     /**
-     * @brief 输出日志(纯虚函数)
+     * @brief 输出日志
      * @param logger 产生日志的日志器
      * @param event 日志事件
+     * @details 纯虚函数，由子类实现具体的输出逻辑
      */
     virtual void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) = 0;
 
@@ -88,24 +89,20 @@ protected:
     /**
      * @brief 检查是否应该过滤本条日志
      * @param event 日志事件
-     * @return true表示应该过滤掉(不输出),false表示不过滤(正常输出)
+     * @return true表示应该过滤掉（不输出），false表示不过滤（正常输出）
      */
     bool shouldFilter(LogEvent::ptr event) const;
 
 protected:
-    // 日志级别
-    Level m_level = Level::DEBUG;
-    // 格式器
-    LogFormatter::ptr m_formatter;
-    // 互斥锁,保护多线程操作
-    std::mutex m_mutex;
-    // 过滤器列表
-    std::vector<LogFilter::ptr> m_filters;
+    Level m_level = Level::DEBUG;          // 日志级别
+    LogFormatter::ptr m_formatter;         // 格式器
+    std::mutex m_mutex;                    // 互斥锁，保护多线程操作
+    std::vector<LogFilter::ptr> m_filters; // 过滤器列表
 };
 
 /**
  * @brief 输出到控制台的Appender
- * 将日志输出到标准输出流(终端)
+ * @details 将日志输出到标准输出流（终端）
  */
 class StdoutLogAppender : public LogAppender
 {
@@ -127,7 +124,7 @@ public:
 
 /**
  * @brief 输出到文件的Appender
- * 将日志输出到指定文件,支持同步和异步两种模式
+ * @details 将日志输出到指定文件，支持同步和异步两种模式
  */
 class FileLogAppender : public LogAppender
 {
@@ -141,7 +138,8 @@ public:
     FileLogAppender(const std::string &filename);
 
     /**
-     * @brief 析构函数,关闭文件
+     * @brief 析构函数
+     * @details 关闭文件
      */
     ~FileLogAppender();
 
@@ -171,10 +169,7 @@ public:
     LogFile::RollMode getRollMode() const;
 
 private:
-    // 日志文件名
-    std::string m_filename;
-    // 文件输出流
-    std::ofstream m_filestream;
-    // 日志滚动模式
-    LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE;
+    std::string m_filename;                                 // 日志文件名
+    std::ofstream m_filestream;                             // 文件输出流
+    LogFile::RollMode m_rollMode = LogFile::RollMode::SIZE; // 日志滚动模式
 };

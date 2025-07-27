@@ -11,7 +11,7 @@
 #include <atomic>
 #include <cstdlib>
 
-// 全局异步日志对象,仅在LogManager内部使用
+// 全局异步日志对象，仅在LogManager内部使用
 static std::unique_ptr<AsyncLogging> g_asyncLog;
 
 // 声明外部的函数指针变量
@@ -24,9 +24,8 @@ static std::thread g_monitorThread;
 
 /**
  * @brief 监控异步日志系统的健康状态
- * @param checkInterval 检查间隔(秒)
- *
- * 定期检查异步日志系统是否正常工作,如果发现问题,输出警告并尝试恢复
+ * @param checkInterval 检查间隔（秒）
+ * @details 定期检查异步日志系统是否正常工作，如果发现问题，输出警告并尝试恢复
  */
 static void monitorAsyncLogging(int checkInterval)
 {
@@ -39,14 +38,14 @@ static void monitorAsyncLogging(int checkInterval)
     {
         bool hasError = false;
 
-        // 获取LogManager实例,检查是否已初始化
+        // 获取LogManager实例，检查是否已初始化
         auto logManager = LogManager::getInstance();
         bool isInitialized = logManager->isInitialized();
 
-        // 如果日志系统尚未初始化,则跳过检查
+        // 如果日志系统尚未初始化，则跳过检查
         if (!isInitialized)
         {
-            // 日志系统未初始化,不需要报警
+            // 日志系统未初始化，不需要报警
             std::this_thread::sleep_for(std::chrono::seconds(checkInterval));
             continue;
         }
@@ -61,7 +60,7 @@ static void monitorAsyncLogging(int checkInterval)
         // 检查异步输出函数是否设置
         if (!g_asyncOutputFunc)
         {
-            std::cerr << "警告: 异步输出函数未设置,日志系统可能降级为同步模式" << std::endl;
+            std::cerr << "警告: 异步输出函数未设置，日志系统可能降级为同步模式" << std::endl;
             hasError = true;
         }
 
@@ -69,13 +68,13 @@ static void monitorAsyncLogging(int checkInterval)
         {
             failureCount++;
 
-            // 如果连续失败次数达到阈值,尝试恢复
+            // 如果连续失败次数达到阈值，尝试恢复
             if (failureCount >= 3)
             {
                 auto now = std::chrono::steady_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - lastRecoveryAttempt).count();
 
-                // 至少间隔5分钟才尝试恢复,避免频繁重启
+                // 至少间隔5分钟才尝试恢复，避免频繁重启
                 if (elapsed >= 5)
                 {
                     std::cerr << "尝试恢复异步日志系统..." << std::endl;
@@ -97,7 +96,7 @@ static void monitorAsyncLogging(int checkInterval)
         }
         else
         {
-            // 系统正常,重置失败计数
+            // 系统正常，重置失败计数
             if (failureCount > 0)
             {
                 std::cerr << "异步日志系统恢复正常" << std::endl;
@@ -112,7 +111,7 @@ static void monitorAsyncLogging(int checkInterval)
 
 /**
  * @brief 启动异步日志监控线程
- * @param checkInterval 检查间隔(秒)
+ * @param checkInterval 检查间隔（秒）
  */
 static void startMonitor(int checkInterval = 60)
 {
@@ -120,7 +119,7 @@ static void startMonitor(int checkInterval = 60)
     {
         g_monitorRunning = true;
         g_monitorThread = std::thread(monitorAsyncLogging, checkInterval);
-        g_monitorThread.detach(); // 分离线程,让它在后台运行
+        g_monitorThread.detach(); // 分离线程，让它在后台运行
     }
 }
 
@@ -130,22 +129,23 @@ static void startMonitor(int checkInterval = 60)
 static void stopMonitor()
 {
     g_monitorRunning = false;
-    // 线程已经detach,无需join
+    // 线程已经detach，无需join
 }
 
 /**
  * @brief LogManager构造函数
- * 初始化根日志器(root)
+ * @details 初始化根日志器（root）
  */
 LogManager::LogManager()
 {
-    // 创建默认的root日志器,但不配置任何Appender
+    // 创建默认的root日志器，但不配置任何Appender
     m_root = std::make_shared<Logger>("root");
     m_loggers["root"] = m_root;
 }
 
 /**
- * @brief 析构函数,确保资源正确释放
+ * @brief 析构函数
+ * @details 确保资源正确释放
  */
 LogManager::~LogManager()
 {
@@ -165,6 +165,10 @@ LogManager::~LogManager()
 
 std::shared_ptr<LogManager> LogManager::s_instance = nullptr;
 
+/**
+ * @brief 获取LogManager单例实例
+ * @return LogManager实例
+ */
 std::shared_ptr<LogManager> LogManager::getInstance()
 {
     if (!s_instance)
@@ -176,10 +180,10 @@ std::shared_ptr<LogManager> LogManager::getInstance()
 
 /**
  * @brief 获取或创建指定名称的日志器
- * 如果请求的日志器不存在,则创建一个新的日志器
- * 新创建的日志器会继承root日志器的配置
  * @param name 日志器名称
  * @return 日志器智能指针
+ * @details 如果请求的日志器不存在，则创建一个新的日志器
+ * 新创建的日志器会继承root日志器的配置
  */
 Logger::ptr LogManager::getLogger(const std::string &name)
 {
@@ -196,23 +200,23 @@ Logger::ptr LogManager::getLogger(const std::string &name)
     Logger::ptr logger = std::make_shared<Logger>(name);
 
     // 建立父子关系
-    // 如果日志器名称为 "a.b.c",则其父日志器为 "a.b"
+    // 如果日志器名称为"a.b.c"，则其父日志器为"a.b"
     size_t pos = name.find_last_of('.');
     if (pos == std::string::npos)
     {
-        // 如果名称中没有'.',说明是顶级日志器,其父是root
-        // (root本身在构造时已创建,所以这里的name不会是"root")
+        // 如果名称中没有'.'，说明是顶级日志器，其父是root
+        // （root本身在构造时已创建，所以这里的name不会是"root"）
         logger->setParent(m_root);
     }
     else
     {
-        // 名称中有'.', 则递归获取父日志器
+        // 名称中有'.'，则递归获取父日志器
         std::string parent_name = name.substr(0, pos);
         logger->setParent(getLogger(parent_name));
     }
 
     // 新创建的logger默认继承父logger的级别
-    // Appender和Formatter不再需要复制,依赖事件向上传递
+    // Appender和Formatter不再需要复制，依赖事件向上传递
     logger->setLevel(logger->getParent()->getLevel());
 
     // 加入管理表
@@ -222,14 +226,12 @@ Logger::ptr LogManager::getLogger(const std::string &name)
 
 /**
  * @brief 初始化或重新配置日志系统
- *
- * 这是配置日志系统的唯一入口。它会清空所有现有配置,
- * 然后根据提供的参数重新设置。
- *
- * @param asyncLogBasename 异步日志文件基础名。如果为空,则只使用控制台输出。
- * @param asyncLogRollSize 日志文件滚动大小(字节)。
- * @param asyncLogFlushInterval 日志刷新间隔(秒)。
+ * @param asyncLogBasename 异步日志文件基础名。如果为空，则只使用控制台输出。
+ * @param asyncLogRollSize 日志文件滚动大小（字节）。
+ * @param asyncLogFlushInterval 日志刷新间隔（秒）。
  * @param rollMode 日志滚动模式
+ * @details 这是配置日志系统的唯一入口。它会清空所有现有配置，
+ * 然后根据提供的参数重新设置。
  */
 void LogManager::init(const std::string &asyncLogBasename,
                       off_t asyncLogRollSize,
@@ -380,7 +382,7 @@ void LogManager::init(const std::string &asyncLogBasename,
 
 /**
  * @brief 检查异步日志系统状态
- * @return true表示异步日志系统正常工作,false表示异常
+ * @return true表示异步日志系统正常工作，false表示异常
  */
 bool LogManager::checkAsyncLoggingStatus() const
 {
@@ -393,8 +395,8 @@ bool LogManager::checkAsyncLoggingStatus() const
 
 /**
  * @brief 重新初始化异步日志系统
- * 在监控到异常状态时调用此方法尝试恢复
- * @return true表示重新初始化成功,false表示失败
+ * @return true表示重新初始化成功，false表示失败
+ * @details 在监控到异常状态时调用此方法尝试恢复
  */
 bool LogManager::reinitializeAsyncLogging()
 {
@@ -483,6 +485,7 @@ bool LogManager::reinitializeAsyncLogging()
 /**
  * @brief 设置日志滚动模式
  * @param mode 滚动模式
+ * @details 动态更改日志滚动模式，会触发重新初始化以应用新配置
  */
 void LogManager::setRollMode(LogFile::RollMode mode)
 {
@@ -509,6 +512,10 @@ void LogManager::setRollMode(LogFile::RollMode mode)
     }
 }
 
+/**
+ * @brief 配置更新回调函数
+ * @details 当配置文件发生变化时，自动更新日志系统的配置
+ */
 void LogManager::onConfigUpdate()
 {
     LOG_INFO(m_root) << "[LogManager] 检测到配置更新，准备重新应用日志配置...";
@@ -550,7 +557,7 @@ void LogManager::onConfigUpdate()
     {
         for (const auto &appender : m_root->getAppenders())
         {
-            // 假设 FileLogAppender 和 StdoutLogAppender 可以通过某种方式识别
+            // 假设FileLogAppender和StdoutLogAppender可以通过某种方式识别
             // 这里简单处理：假定文件appender的文件名不为空
             auto fileAppender = std::dynamic_pointer_cast<FileLogAppender>(appender);
             if (fileAppender)
@@ -566,9 +573,13 @@ void LogManager::onConfigUpdate()
     LOG_INFO(m_root) << "[LogManager] 日志级别配置热重载完成";
 }
 
+/**
+ * @brief 关闭日志系统
+ * @details 这个函数确保在程序退出前，异步日志线程被安全地停止和join
+ */
 void LogManager::shutdown()
 {
-    // 这个函数确保在程序退出前，异步日志线程被安全地停止和 join
+    // 这个函数确保在程序退出前，异步日志线程被安全地停止和join
     if (g_asyncLog)
     {
         LOG_INFO(m_root) << "[LogManager] 异步日志已关闭";

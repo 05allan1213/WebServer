@@ -1,6 +1,11 @@
 #include "log/LogConfig.h"
 #include "log/Log.h"
 
+/**
+ * @brief LogConfig构造函数
+ * @param node YAML配置节点
+ * @details 解析log部分配置并校验参数有效性
+ */
 LogConfig::LogConfig(const YAML::Node &node) : node_(node)
 {
     DLOG_INFO << "[LogConfig] 开始解析 'log' 配置...";
@@ -30,8 +35,7 @@ LogConfig::LogConfig(const YAML::Node &node) : node_(node)
  * @param rollMode 滚动模式
  * @param fileLevel 文件日志级别
  * @param consoleLevel 控制台日志级别
- *
- * 对每个配置参数进行严格验证,确保配置的有效性
+ * @details 对每个配置参数进行严格验证，确保配置的有效性
  */
 void LogConfig::validateConfig(const std::string &basename, int rollSize, int flushInterval,
                                const std::string &rollMode, const std::string &fileLevel,
@@ -49,21 +53,21 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
     // 验证滚动大小
     if (rollSize <= 0)
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_size必须大于0,当前值: " << rollSize;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_size必须大于0, 当前值: " << rollSize;
         throw std::invalid_argument("log.roll_size必须大于0");
     }
 
     // 验证刷新间隔
     if (flushInterval <= 0)
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.flush_interval必须大于0,当前值: " << flushInterval;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.flush_interval必须大于0, 当前值: " << flushInterval;
         throw std::invalid_argument("log.flush_interval必须大于0");
     }
 
     // 验证滚动模式
     if (rollMode != "SIZE" && rollMode != "TIME" && rollMode != "SIZE_HOURLY")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一,当前值: " << rollMode;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一, 当前值: " << rollMode;
         throw std::invalid_argument("log.roll_mode必须是SIZE/TIME/SIZE_HOURLY之一");
     }
 
@@ -71,20 +75,24 @@ void LogConfig::validateConfig(const std::string &basename, int rollSize, int fl
     if (fileLevel != "DEBUG" && fileLevel != "INFO" && fileLevel != "WARN" &&
         fileLevel != "ERROR" && fileLevel != "FATAL")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.file_level必须是有效的日志级别,当前值: " << fileLevel;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.file_level必须是有效的日志级别, 当前值: " << fileLevel;
         throw std::invalid_argument("log.file_level必须是有效的日志级别");
     }
 
     if (consoleLevel != "DEBUG" && consoleLevel != "INFO" && consoleLevel != "WARN" &&
         consoleLevel != "ERROR" && consoleLevel != "FATAL")
     {
-        DLOG_ERROR << "LogConfig: 配置验证失败 - log.console_level必须是有效的日志级别,当前值: " << consoleLevel;
+        DLOG_ERROR << "LogConfig: 配置验证失败 - log.console_level必须是有效的日志级别, 当前值: " << consoleLevel;
         throw std::invalid_argument("log.console_level必须是有效的日志级别");
     }
 
     DLOG_INFO << "LogConfig: 配置验证通过";
 }
 
+/**
+ * @brief 获取日志文件名
+ * @return 日志文件名
+ */
 std::string LogConfig::getBasename() const
 {
     if (node_ && node_["basename"])
@@ -95,6 +103,10 @@ std::string LogConfig::getBasename() const
     return "logs/server";
 }
 
+/**
+ * @brief 获取日志文件滚动大小
+ * @return 滚动大小（字节）
+ */
 int LogConfig::getRollSize() const
 {
     if (node_ && node_["roll_size"])
@@ -105,6 +117,10 @@ int LogConfig::getRollSize() const
     return 1048576;
 }
 
+/**
+ * @brief 获取刷新间隔
+ * @return 刷新间隔（秒）
+ */
 int LogConfig::getFlushInterval() const
 {
     if (node_ && node_["flush_interval"])
@@ -115,6 +131,10 @@ int LogConfig::getFlushInterval() const
     return 1;
 }
 
+/**
+ * @brief 获取滚动模式
+ * @return 滚动模式字符串
+ */
 std::string LogConfig::getRollMode() const
 {
     if (node_ && node_["roll_mode"])
@@ -125,6 +145,10 @@ std::string LogConfig::getRollMode() const
     return "SIZE_HOURLY";
 }
 
+/**
+ * @brief 获取是否启用文件输出
+ * @return 是否启用文件输出
+ */
 bool LogConfig::getEnableFile() const
 {
     if (node_ && node_["enable_file"])
@@ -135,6 +159,10 @@ bool LogConfig::getEnableFile() const
     return true;
 }
 
+/**
+ * @brief 获取是否启用异步日志
+ * @return 是否启用异步日志
+ */
 bool LogConfig::getEnableAsync() const
 {
     if (node_ && node_["enable_async"])
@@ -145,6 +173,10 @@ bool LogConfig::getEnableAsync() const
     return true;
 }
 
+/**
+ * @brief 获取文件日志级别
+ * @return 文件日志级别字符串
+ */
 std::string LogConfig::getFileLevel() const
 {
     if (node_ && node_["file_level"])
@@ -155,6 +187,10 @@ std::string LogConfig::getFileLevel() const
     return "DEBUG";
 }
 
+/**
+ * @brief 获取控制台日志级别
+ * @return 控制台日志级别字符串
+ */
 std::string LogConfig::getConsoleLevel() const
 {
     if (node_ && node_["console_level"])

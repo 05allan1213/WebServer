@@ -8,11 +8,12 @@
 #include <any>
 
 /**
- * @brief HTTP请求对象,封装请求行、头部、消息体等信息
+ * @brief HTTP请求对象，封装请求行、头部、消息体等信息
  *
  * 用法：
  * 1. 由HttpParser解析生成
  * 2. 提供方法获取请求方法、路径、参数、头部、体等
+ * 3. 支持用户认证和上下文传递
  */
 class HttpRequest
 {
@@ -23,11 +24,11 @@ public:
     enum class Method
     {
         kInvalid, // 无效方法
-        kGet,     // GET
-        kPost,    // POST
-        kHead,    // HEAD
-        kPut,     // PUT
-        kDelete   // DELETE
+        kGet,     // GET请求
+        kPost,    // POST请求
+        kHead,    // HEAD请求
+        kPut,     // PUT请求
+        kDelete   // DELETE请求
     };
 
     /**
@@ -41,20 +42,20 @@ public:
     };
 
     /**
-     * @brief 构造函数,初始化为无效请求
+     * @brief 构造函数，初始化为无效请求
      */
     HttpRequest();
 
     /**
      * @brief 设置HTTP方法
      * @param start 方法起始指针
-     * @param end   方法结束指针
+     * @param end 方法结束指针
      * @return 是否设置成功
      */
     bool setMethod(const char *start, const char *end);
 
     /**
-     * @brief 设置HTTP方法 (从字符串)
+     * @brief 设置HTTP方法（从字符串）
      * @param m 方法字符串
      * @return 是否设置成功
      */
@@ -65,12 +66,17 @@ public:
      * @return Method枚举值
      */
     Method getMethod() const { return method_; }
+
+    /**
+     * @brief 获取HTTP方法字符串
+     * @return 方法字符串
+     */
     const char *getMethodString() const;
 
     /**
      * @brief 设置请求路径
      * @param start 路径起始指针
-     * @param end   路径结束指针
+     * @param end 路径结束指针
      */
     void setPath(const char *start, const char *end);
 
@@ -83,7 +89,7 @@ public:
     /**
      * @brief 设置查询参数
      * @param start 参数起始指针
-     * @param end   参数结束指针
+     * @param end 参数结束指针
      */
     void setQuery(const char *start, const char *end);
 
@@ -106,17 +112,17 @@ public:
     Version getVersion() const { return version_; }
 
     /**
-     * @brief 添加请求头部 (大小写不敏感)
+     * @brief 添加请求头部（大小写不敏感）
      * @param start 头部名起始指针
      * @param colon 冒号位置指针
-     * @param end   头部值结束指针
+     * @param end 头部值结束指针
      */
     void addHeader(const char *start, const char *colon, const char *end);
 
     /**
-     * @brief 获取指定头部 (大小写不敏感)
+     * @brief 获取指定头部（大小写不敏感）
      * @param key 头部名
-     * @return 可选值,存在则为头部值
+     * @return 可选值，存在则为头部值
      */
     std::optional<std::string> getHeader(const std::string &key) const;
 
@@ -129,17 +135,26 @@ public:
     /**
      * @brief 设置消息体
      * @param start 体起始指针
-     * @param len   体长度
+     * @param len 体长度
      */
     void setBody(const char *start, size_t len);
 
     /**
-     * @brief 获取消息体
+     * @brief 获取消息体（const版本）
      * @return 消息体字符串
      */
     const std::string &getBody() const { return body_; }
+
+    /**
+     * @brief 获取消息体（非const版本）
+     * @return 消息体字符串引用
+     */
     std::string &getBody() { return body_; }
 
+    /**
+     * @brief 交换两个请求对象的内容
+     * @param that 要交换的请求对象
+     */
     void swap(HttpRequest &that);
 
     /**
@@ -147,6 +162,7 @@ public:
      * @param uid 用户ID，未认证时为-1
      */
     void setUserId(int uid) { user_id_ = uid; }
+
     /**
      * @brief 获取当前请求的认证用户ID
      * @return 用户ID，未认证时为-1
@@ -162,7 +178,7 @@ public:
     /**
      * @brief 获取从URL路径中提取的单个参数
      * @param key 参数名
-     * @return 参数值的 optional 封装
+     * @return 参数值的optional封装
      */
     std::optional<std::string> getParam(const std::string &key) const;
 
@@ -183,7 +199,7 @@ private:
     Version version_;                                      // 协议版本
     std::string path_;                                     // 请求路径
     std::string query_;                                    // 查询参数
-    std::unordered_map<std::string, std::string> headers_; // 头部字段 (key统一为小写)
+    std::unordered_map<std::string, std::string> headers_; // 头部字段（key统一为小写）
     std::string body_;                                     // 消息体
     std::unordered_map<std::string, std::string> params_;  // URL路径参数
     int user_id_ = -1;                                     // 认证用户ID，-1表示未认证

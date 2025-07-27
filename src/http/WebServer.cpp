@@ -21,17 +21,26 @@
 #include <iomanip>
 
 /**
- * @brief 一个简单的 WebSocket Echo 处理器
- * @details 实现了 WebSocketHandler 接口，会将收到的任何消息原样返回给客户端。
+ * @brief 一个简单的WebSocket Echo处理器
+ * @details 实现了WebSocketHandler接口，会将收到的任何消息原样返回给客户端。
  */
 class EchoWebSocketHandler : public WebSocketHandler
 {
 public:
+    /**
+     * @brief 连接建立回调
+     * @param conn TCP连接指针
+     */
     void onConnect(const TcpConnectionPtr &conn) override
     {
         DLOG_INFO << "[WebSocket] Echo handler new connection: " << conn->peerAddress().toIpPort();
     }
 
+    /**
+     * @brief 消息接收回调
+     * @param conn TCP连接指针
+     * @param message 接收到的消息
+     */
     void onMessage(const TcpConnectionPtr &conn, const std::string &message) override
     {
         DLOG_INFO << "[WebSocket] Echo handler received message: '" << message << "' from " << conn->peerAddress().toIpPort();
@@ -39,6 +48,10 @@ public:
         conn->sendWebSocket(message);
     }
 
+    /**
+     * @brief 连接关闭回调
+     * @param conn TCP连接指针
+     */
     void onClose(const TcpConnectionPtr &conn) override
     {
         DLOG_INFO << "[WebSocket] Echo handler connection closed: " << conn->peerAddress().toIpPort();
@@ -47,7 +60,7 @@ public:
 
 using json = nlohmann::json;
 
-// --- 密码哈希辅助函数 ---
+// 密码哈希辅助函数
 /**
  * @brief 计算字符串的SHA-256哈希值
  * @param str 输入字符串
@@ -73,11 +86,11 @@ std::string sha256(const std::string &str)
     return ss.str();
 }
 
-// --- 业务处理函数 ---
+// 业务处理函数
 void userLogin(const HttpRequest &req, HttpResponse *resp);
 void userRegister(const HttpRequest &req, HttpResponse *resp);
 
-// --- 中间件和处理器包装 ---
+// 中间件和处理器包装
 /**
  * @brief 日志中间件
  * @details 记录每个请求的开始和结束，以及处理耗时。
@@ -124,20 +137,40 @@ void authMiddleware(const HttpRequest &req, HttpResponse *resp, Next next)
  */
 void staticFileHandler(const HttpRequest &req, HttpResponse *resp)
 {
-    // 默认从 "web_static" 目录提供文件
+    // 默认从"web_static"目录提供文件
     StaticFileHandler::handle(req, resp);
 }
 
+/**
+ * @brief 简单的线程池类
+ */
 class ThreadPool
 {
 public:
+    /**
+     * @brief 启动线程池
+     */
     void start() {}
+
+    /**
+     * @brief 停止线程池
+     */
     void stop() {}
 };
 
 /**
  * @brief 构造函数，完成所有模块的初始化
  * @param configManager 配置管理器的引用
+ *
+ * 初始化流程：
+ * 1. 初始化日志管理器
+ * 2. 获取网络配置
+ * 3. 初始化数据库连接池
+ * 4. 创建事件循环
+ * 5. 创建HTTP服务器
+ * 6. 配置SSL（如果启用）
+ * 7. 初始化回调函数
+ * 8. 注册路由
  */
 WebServer::WebServer(ConfigManager &configManager)
     : running_(false),
@@ -149,7 +182,7 @@ WebServer::WebServer(ConfigManager &configManager)
     networkConfig_ = configManager_.getNetworkConfig();
     if (!networkConfig_)
     {
-        throw std::runtime_error("初始化失败: NetworkConfig 为空。请检查配置文件是否存在或格式是否正确。");
+        throw std::runtime_error("初始化失败: NetworkConfig为空。请检查配置文件是否存在或格式是否正确。");
     }
 
     auto dbConfig = configManager_.getDBConfig();
@@ -172,14 +205,14 @@ WebServer::WebServer(ConfigManager &configManager)
         if (certPath.empty() || keyPath.empty())
         {
             DLOG_FATAL << "SSL/TLS is enabled, but certificate or key path is not configured.";
-            throw std::runtime_error("SSL/TLS 配置缺失");
+            throw std::runtime_error("SSL/TLS配置缺失");
         }
         server_->enableSSL(certPath, keyPath);
-        DLOG_INFO << "[WebServer] HTTPS 服务已启用";
+        DLOG_INFO << "[WebServer] HTTPS服务已启用";
     }
     else
     {
-        DLOG_INFO << "[WebServer] HTTP 服务已启用";
+        DLOG_INFO << "[WebServer] HTTP服务已启用";
     }
 
     businessPool_ = std::make_unique<ThreadPool>();
@@ -187,31 +220,34 @@ WebServer::WebServer(ConfigManager &configManager)
     registerRoutes();
 }
 
+/**
+ * @brief 析构函数
+ */
 WebServer::~WebServer()
 {
-    DLOG_INFO << "[WebServer] WebServer 析构，资源将按RAII规则自动清理。";
+    DLOG_INFO << "[WebServer] WebServer析构，资源将按RAII规则自动清理。";
 }
 
 /**
  * @brief 注册所有路由和中间件
- * @details 定义服务器的所有 API 端点和行为。
+ * @details 定义服务器的所有API端点和行为。
  */
 void WebServer::registerRoutes()
 {
     DLOG_INFO << "[WebServer] 开始注册路由...";
 
-    // --- WebSocket 路由 ---
+    // WebSocket路由
     router_.addWebSocket("/echo", std::make_shared<EchoWebSocketHandler>());
 
-    // --- 全局中间件 ---
-    // 对所有请求都应用日志中间件。
+    // 全局中间件
+    // 对所有请求都应用日志中间件
     router_.use(loggingMiddleware);
 
-    // --- API 路由 ---
+    // API路由
     router_.post("/api/register", userRegister);
     router_.post("/api/login", userLogin);
 
-    // --- 带参数的路由示例 ---
+    // 带参数的路由示例
     router_.get("/api/users/:id/posts/:postId", [](const HttpRequest &req, HttpResponse *resp)
                 {
                     json result;
@@ -223,8 +259,8 @@ void WebServer::registerRoutes()
                     resp->setContentType("application/json");
                     resp->setBody(result.dump(4)); });
 
-    // --- 受保护的 API (需要认证) ---
-    // 请求会先通过 loggingMiddleware，然后通过 authMiddleware，最后到达业务处理器。
+    // 受保护的API（需要认证）
+    // 请求会先通过loggingMiddleware，然后通过authMiddleware，最后到达业务处理器
     router_.get("/api/profile", authMiddleware, [](const HttpRequest &req, HttpResponse *resp)
                 {
         json profile;
@@ -234,7 +270,7 @@ void WebServer::registerRoutes()
         resp->setContentType("application/json");
         resp->setBody(profile.dump()); });
 
-    // --- 监控路由 ---
+    // 监控路由
     router_.get("/debug/stats", [this](const HttpRequest &req, HttpResponse *resp)
                 {
         json stats;
@@ -246,15 +282,15 @@ void WebServer::registerRoutes()
         resp->setContentType("application/json");
         resp->setBody(stats.dump(4)); });
 
-    // --- 静态文件路由 (作为所有路由的末端) ---
-    // 使用 all() 方法捕获所有未被上面 API 路由匹配到的请求。
+    // 静态文件路由（作为所有路由的末端）
+    // 使用all()方法捕获所有未被上面API路由匹配到的请求
     router_.all("/*", staticFileHandler);
 
     DLOG_INFO << "[WebServer] 路由注册完成。";
 }
 
 /**
- * @brief 初始化 HTTP 回调，将请求分发到 onHttpRequest
+ * @brief 初始化HTTP回调，将请求分发到onHttpRequest
  */
 void WebServer::initCallbacks()
 {
@@ -262,15 +298,22 @@ void WebServer::initCallbacks()
 }
 
 /**
- * @brief HTTP请求统一入口，根据 path 路由到静态或动态处理，并对需要认证的API统一做JWT校验和user_id注入
+ * @brief HTTP请求统一入口
  * @param req HTTP请求对象
  * @param resp HTTP响应对象
+ *
+ * 处理流程：
+ * 1. 检查是否为WebSocket升级请求
+ * 2. 如果是WebSocket请求，进行协议升级
+ * 3. 如果是HTTP请求，匹配路由并执行中间件链
+ * 4. 对需要认证的API统一做JWT校验和user_id注入
  */
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
     auto upgradeHeader = req.getHeader("Upgrade");
     if (upgradeHeader && upgradeHeader->find("websocket") != std::string::npos)
     {
+        // WebSocket协议升级处理
         WebSocketHandler::Ptr wsHandler = router_.matchWebSocket(req);
         if (wsHandler)
         {
@@ -280,6 +323,8 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
                 resp->setStatusCode(HttpResponse::k400BadRequest);
                 return;
             }
+
+            // 计算WebSocket Accept Key
             std::string combined = key.value() + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
             unsigned char hash[SHA_DIGEST_LENGTH];
             SHA1(reinterpret_cast<const unsigned char *>(combined.c_str()), combined.length(), hash);
@@ -295,13 +340,14 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
             std::string acceptKey(bptr->data, bptr->length);
             BIO_free_all(b64);
 
+            // 设置WebSocket升级响应头
             resp->setStatusCode(HttpResponse::k101SwitchingProtocols);
             resp->setStatusMessage("Switching Protocols");
             resp->setHeader("Upgrade", "websocket");
             resp->setHeader("Connection", "Upgrade");
             resp->setHeader("Sec-WebSocket-Accept", acceptKey);
 
-            // --- 协议升级核心逻辑 ---
+            // 协议升级核心逻辑
             auto conn = std::any_cast<TcpConnectionPtr>(req.getContext());
             auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
             context->state = SocketContext::WEBSOCKET; // 切换状态
@@ -334,11 +380,11 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
     // 将匹配到的路径参数设置到请求对象中
     const_cast<HttpRequest &>(req).setParams(result.params);
 
-    // --- 执行中间件链 ---
+    // 执行中间件链
     size_t index = 0;
     const MiddlewareChain &chain = result.chain;
 
-    // 捕获 this, req, resp, chain, index, 并通过值传递 next 本身
+    // 捕获this, req, resp, chain, index，并通过值传递next本身
     std::function<void()> next;
     next = [&]()
     {
@@ -353,7 +399,12 @@ void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
     next();
 }
 
-// 自动记录日志的 SQL 执行函数
+/**
+ * @brief 自动记录日志的SQL执行函数
+ * @param mysql MySQL连接指针
+ * @param sql SQL语句
+ * @return 执行是否成功
+ */
 static bool execSQL(MYSQL *mysql, const std::string &sql)
 {
     DLOG_INFO << "SQL: " << sql;
@@ -366,7 +417,12 @@ static bool execSQL(MYSQL *mysql, const std::string &sql)
     return true;
 }
 
-/// JWT认证检查函数
+/**
+ * @brief JWT认证检查函数
+ * @param req HTTP请求对象
+ * @param user_id 输出参数，用户ID
+ * @return 认证是否成功
+ */
 bool checkAuth(const HttpRequest &req, int &user_id)
 {
     auto authOpt = req.getHeader("Authorization");
@@ -379,13 +435,13 @@ bool checkAuth(const HttpRequest &req, int &user_id)
         std::string token = auth.substr(7);
         try
         {
-            // 从 ConfigManager 获取最新的 JWT Secret
+            // 从ConfigManager获取最新的JWT Secret
             auto baseConfig = ConfigManager::getInstance().getBaseConfig();
             if (!baseConfig)
                 return false;
 
             auto decoded = jwt::decode(token);
-            // 使用 () 构造函数，而不是 {}
+            // 使用()构造函数，而不是{}
             auto verifier = jwt::verify().allow_algorithm(jwt::algorithm::hs256(baseConfig->getJwtSecret()));
             verifier.verify(decoded);
             user_id = std::stoi(decoded.get_payload_claim("user_id").as_string());
@@ -399,6 +455,11 @@ bool checkAuth(const HttpRequest &req, int &user_id)
     return false;
 }
 
+/**
+ * @brief 用户注册处理函数
+ * @param req HTTP请求对象
+ * @param resp HTTP响应对象
+ */
 void userRegister(const HttpRequest &req, HttpResponse *resp)
 {
     DLOG_INFO << "[WebServer] 用户注册请求: " << req.getBody();
@@ -423,6 +484,7 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
         return;
     }
 
+    // 对密码进行SHA-256哈希
     std::string hashedPassword = sha256(password);
 
     Connection *conn = nullptr;
@@ -453,6 +515,11 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
     }
 }
 
+/**
+ * @brief 用户登录处理函数
+ * @param req HTTP请求对象
+ * @param resp HTTP响应对象
+ */
 void userLogin(const HttpRequest &req, HttpResponse *resp)
 {
     DLOG_INFO << "[WebServer] 用户登录请求: " << req.getBody();
@@ -477,6 +544,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         return;
     }
 
+    // 对密码进行SHA-256哈希
     std::string hashedPassword = sha256(password);
 
     Connection *conn = nullptr;
@@ -500,6 +568,7 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
 
             if (hashedPassword == dbPasswordHash)
             {
+                // 密码验证成功，生成JWT令牌
                 int user_id = atoi(row[0]);
                 auto baseConfig = ConfigManager::getInstance().getBaseConfig();
                 if (!baseConfig)
@@ -548,7 +617,8 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
 }
 
 /**
- * @brief 启动服务器(包括日志、线程池、网络服务、主事件循环)
+ * @brief 启动服务器
+ * @details 启动包括日志、线程池、网络服务、主事件循环
  */
 void WebServer::start()
 {

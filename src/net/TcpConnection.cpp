@@ -20,7 +20,12 @@
 #include <openssl/err.h>
 #include "ssl/SSLContext.h"
 
-// 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
+/**
+ * @brief 检查事件循环指针是否为空
+ * @param loop 事件循环指针
+ * @return 如果非空返回原指针，否则终止程序
+ * @note 强制要求传入的 EventLoop* loop (baseLoop) 不能为空
+ */
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
 {
     if (loop == nullptr)
@@ -30,6 +35,17 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
     return loop;
 }
 
+/**
+ * @brief 构造函数
+ * @param loop 事件循环指针
+ * @param nameArg 连接名称
+ * @param sockfd 套接字文件描述符
+ * @param localAddr 本地地址
+ * @param peerAddr 对端地址
+ * @param config 网络配置
+ * @param sslContext SSL上下文
+ * @note 初始化TCP连接，设置通道回调，配置SSL（如果提供）
+ */
 TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int sockfd,
                              const InetAddress &localAddr, const InetAddress &peerAddr,
                              std::shared_ptr<NetworkConfig> config, SSLContext *sslContext)
@@ -70,11 +86,20 @@ TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int so
     }
 }
 
+/**
+ * @brief 析构函数
+ * @note 记录连接销毁日志
+ */
 TcpConnection::~TcpConnection()
 {
     DLOG_INFO << "TcpConnection::dtor[" << name_ << "] at fd=" << channel_->fd() << " state=" << state_;
 }
 
+/**
+ * @brief 发送数据
+ * @param buf 要发送的数据
+ * @note 如果当前线程是事件循环线程则直接发送，否则加入队列
+ */
 void TcpConnection::send(const std::string &buf)
 {
     if (state_ == kConnected)
@@ -93,6 +118,12 @@ void TcpConnection::send(const std::string &buf)
     }
 }
 
+/**
+ * @brief 在事件循环中发送数据
+ * @param data 数据指针
+ * @param len 数据长度
+ * @note 处理发送缓冲区满的情况，支持部分发送
+ */
 void TcpConnection::sendInLoop(const void *data, size_t len)
 {
     ssize_t nwrote = 0;      // 记录本次发送的字节数
@@ -172,6 +203,10 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
     }
 }
 
+/**
+ * @brief 关闭连接
+ * @note 设置状态为断开中，在事件循环中执行实际关闭操作
+ */
 void TcpConnection::shutdown()
 {
     if (state_ == kConnected)
@@ -181,6 +216,10 @@ void TcpConnection::shutdown()
     }
 }
 
+/**
+ * @brief 在事件循环中关闭连接
+ * @note 如果发送缓冲区为空，则关闭写端
+ */
 void TcpConnection::shutdownInLoop()
 {
     if (!channel_->isWriting())
@@ -193,6 +232,12 @@ void TcpConnection::shutdownInLoop()
     }
 }
 
+/**
+ * @brief 发送WebSocket数据
+ * @param payload 数据载荷
+ * @param opcode 操作码
+ * @note 将数据编码为WebSocket帧后发送
+ */
 void TcpConnection::sendWebSocket(const std::string &payload, WebSocketParser::Opcode opcode)
 {
     std::string frame = WebSocketParser::encodeFrame(opcode, payload);
@@ -208,7 +253,10 @@ void TcpConnection::sendWebSocket(const std::string &payload, WebSocketParser::O
     }
 }
 
-// 连接建立
+/**
+ * @brief 连接建立完成
+ * @note 设置连接状态，启用读事件，注册空闲超时定时器
+ */
 void TcpConnection::connectEstablished()
 {
     if (ssl_)
