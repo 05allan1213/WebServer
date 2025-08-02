@@ -40,26 +40,22 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  clean     清理构建目录"
-    echo "  build     构建项目"
+    echo "  build     清理并构建项目 (clean + build)"
     echo "  install   安装到系统"
     echo "  package   打包发布"
-    echo "  all       执行完整构建流程 (clean + build)"
     echo ""
     echo "运行选项:"
     echo "  run       运行主程序 (webserver)"
     echo "  run-test  运行单元测试 (webserver_test)"
-    echo "  run-bench 运行压力测试 (webserver_bench，带benchmark参数)"
+    echo "  run-bench 运行压力测试 (webserver_bench)"
     echo ""
     echo "帮助:"
     echo "  help      显示此帮助信息"
     echo ""
     echo "示例:"
-    echo "  $0 build        # 仅构建"
-    echo "  $0 all          # 完整构建流程"
-    echo "  $0 clean build  # 清理后构建"
-    echo "  $0 run          # 运行主程序"
-    echo "  $0 run-test     # 运行单元测试"
-    echo "  $0 run-bench    # 运行压力测试"
+    echo "  $0 build      # 清理后完整构建"
+    echo "  $0 run        # 运行主程序"
+    echo "  $0 run-test   # 运行单元测试"
 }
 
 # 检查依赖
@@ -132,36 +128,15 @@ build_project() {
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
     
-    # 配置项目
-    print_info "配置CMake项目..."
-    cmake .. -DCMAKE_BUILD_TYPE=Release
+    # 配置项目 (使用 RelWithDebInfo 模式以便调试)
+    print_info "配置CMake项目 (RelWithDebInfo)..."
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
     
     # 编译项目
     print_info "编译项目..."
     make -j$(nproc)
     
     print_success "项目构建完成"
-}
-
-# 运行测试
-run_tests() {
-    print_info "运行测试..."
-    
-    if [ ! -f "$BIN_DIR/webserver_test" ]; then
-        print_error "测试程序不存在，请先构建项目"
-        exit 1
-    fi
-    
-    cd "$BIN_DIR"
-    
-    # 运行测试
-    print_info "执行单元测试..."
-    if ./webserver_test; then
-        print_success "所有测试通过"
-    else
-        print_error "测试失败"
-        exit 1
-    fi
 }
 
 # 检查构建结果
@@ -306,6 +281,8 @@ run_main() {
     
     # 在项目根目录下运行主程序
     cd "$PROJECT_ROOT"
+    # 设置动态库路径，确保能找到 .so 文件
+    export LD_LIBRARY_PATH="$LIB_DIR:$LD_LIBRARY_PATH"
     "$BIN_DIR/webserver"
 }
 
@@ -325,6 +302,8 @@ run_unit_test() {
     
     # 在项目根目录下运行测试
     cd "$PROJECT_ROOT"
+    # 设置动态库路径
+    export LD_LIBRARY_PATH="$LIB_DIR:$LD_LIBRARY_PATH"
     if "$BIN_DIR/webserver_test"; then
         print_success "所有测试通过"
     else
@@ -349,10 +328,12 @@ run_benchmark() {
     print_info "工作目录: $PROJECT_ROOT"
     echo ""
     
-    # 在项目根目录下运行基准测试，带完整参数
+    # 在项目根目录下运行基准测试
     cd "$PROJECT_ROOT"
+    # 设置动态库路径
+    export LD_LIBRARY_PATH="$LIB_DIR:$LD_LIBRARY_PATH"
     
-    # 使用timeout命令，设置最大运行时间为5分钟，确保程序能退出
+    # 使用timeout命令，设置最大运行时间为5分钟
     timeout 300 "$BIN_DIR/webserver_bench" --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true
     
     # 检查退出状态
@@ -384,7 +365,9 @@ main() {
                 clean_build
                 ;;
             build)
+                # ✨ 修改点：将 clean, build 合并
                 check_dependencies
+                clean_build
                 build_project
                 check_build_result
                 ;;
@@ -393,12 +376,6 @@ main() {
                 ;;
             package)
                 package_release
-                ;;
-            all)
-                check_dependencies
-                clean_build
-                build_project
-                check_build_result
                 ;;
             run)
                 run_main
@@ -425,4 +402,4 @@ main() {
 }
 
 # 执行主函数
-main "$@" 
+main "$@"
