@@ -42,22 +42,6 @@
 └── README.md        # 项目说明
 ```
 
-## 快速开始
-
-```bash
-# 一键构建
-./build.sh build
-
-# 运行主程序
-./build.sh run
-
-# 运行单元测试
-./build.sh run-test
-
-# 运行压力测试
-./build.sh run-bench
-```
-
 ## 依赖安装
 
 ```bash
@@ -80,6 +64,38 @@ cd jwt-cpp
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 sudo make install
+```
+
+## 数据库配置
+```bash
+CREATE DATABASE IF NOT EXISTS webserver
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_0900_ai_ci;
+
+USE webserver;
+
+CREATE TABLE IF NOT EXISTS `user` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username` VARCHAR(64) NOT NULL,
+  `password` CHAR(64) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+## 快速开始
+```bash
+# 一键构建
+./build.sh build
+
+# 运行主程序
+./build.sh run
+
+# 运行单元测试
+./build.sh run-test
+
+# 运行压力测试
+./build.sh run-bench
 ```
 
 ## 功能演示脚本/步骤
