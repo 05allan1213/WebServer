@@ -29,14 +29,25 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     output->append("\r\n", 2);
 
     // 2. 添加头部字段
+    // 检查是否已经手动设置了Content-Length
+    bool hasContentLength = false;
+    for (const auto &header : headers_)
+    {
+        if (strcasecmp(header.first.c_str(), "Content-Length") == 0)
+        {
+            hasContentLength = true;
+            break;
+        }
+    }
+
     if (chunked_)
     {
         // 分块传输编码，设置Transfer-Encoding头部
         output->append("Transfer-Encoding: chunked\r\n", 25);
     }
-    else
+    else if (!hasContentLength)
     {
-        // 普通传输，设置Content-Length头部
+        // 普通传输，如果没有手动设置Content-Length，则自动设置
         snprintf(buf, sizeof(buf), "Content-Length: %zd\r\n", body_.size());
         output->append(buf, strlen(buf));
     }
@@ -77,26 +88,29 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     // 头部和Body之间的空行
     output->append("\r\n", 2);
 
-    // 3. 添加消息体
-    if (chunked_)
+    // 3. 添加消息体（HEAD请求不包含body）
+    if (includeBody_)
     {
-        // 分块传输编码格式
-        if (!body_.empty())
+        if (chunked_)
         {
-            // 添加分块大小（十六进制）
-            snprintf(buf, sizeof(buf), "%zx\r\n", body_.size());
-            output->append(buf, strlen(buf));
-            // 添加分块数据
-            output->append(body_.c_str(), body_.size());
-            output->append("\r\n", 2);
+            // 分块传输编码格式
+            if (!body_.empty())
+            {
+                // 添加分块大小（十六进制）
+                snprintf(buf, sizeof(buf), "%zx\r\n", body_.size());
+                output->append(buf, strlen(buf));
+                // 添加分块数据
+                output->append(body_.c_str(), body_.size());
+                output->append("\r\n", 2);
+            }
+            // 添加结束块（0\r\n\r\n）
+            output->append("0\r\n\r\n", 5);
         }
-        // 添加结束块（0\r\n\r\n）
-        output->append("0\r\n\r\n", 5);
-    }
-    else
-    {
-        // 普通传输，直接添加消息体
-        output->append(body_.c_str(), body_.size());
+        else
+        {
+            // 普通传输，直接添加消息体
+            output->append(body_.c_str(), body_.size());
+        }
     }
 }
 

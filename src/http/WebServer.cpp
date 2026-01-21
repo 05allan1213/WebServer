@@ -16,6 +16,8 @@
 #include <nlohmann/json.hpp>
 #include <jwt-cpp/jwt.h>
 #include <openssl/sha.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <iomanip>
@@ -60,29 +62,39 @@ public:
 
 using json = nlohmann::json;
 
-// 密码哈希辅助函数
-/**
- * @brief 计算字符串的SHA-256哈希值
- * @param str 输入字符串
- * @return 16进制表示的哈希值
- */
-std::string sha256(const std::string &str)
-{
-    EVP_MD_CTX *context = EVP_MD_CTX_new();
-    const EVP_MD *md = EVP_sha256();
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int lengthOfHash = 0;
+static void ensureUserTableSchema();
 
-    EVP_DigestInit_ex(context, md, NULL);
-    EVP_DigestUpdate(context, str.c_str(), str.size());
-    EVP_DigestFinal_ex(context, hash, &lengthOfHash);
-    EVP_MD_CTX_free(context);
+/**
+ * @brief 使用 PBKDF2-HMAC-SHA256 对密码进行加盐哈希
+ * @param password 明文密码
+ * @param salt 随机盐值（16 进制字符串）
+ * @return 16 进制表示的哈希结果
+ */
+std::string hashPassword(const std::string &password, const std::string &salt)
+{
+    unsigned char hash[32];
+    PKCS5_PBKDF2_HMAC(password.c_str(), password.length(),
+                      (const unsigned char *)salt.c_str(), salt.length(),
+                      100000, EVP_sha256(), 32, hash);
 
     std::stringstream ss;
-    for (unsigned int i = 0; i < lengthOfHash; i++)
-    {
+    for (int i = 0; i < 32; i++)
         ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
+    return ss.str();
+}
+
+/**
+ * @brief 生成随机盐值
+ * @return 16 进制表示的随机盐
+ */
+std::string generateSalt()
+{
+    unsigned char salt[16];
+    RAND_bytes(salt, 16);
+
+    std::stringstream ss;
+    for (int i = 0; i < 16; i++)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)salt[i];
     return ss.str();
 }
 
@@ -192,6 +204,7 @@ WebServer::WebServer(ConfigManager &configManager)
     }
     DBConnectionPool::getInstance()->init(*dbConfig);
     DLOG_INFO << "[WebServer] 数据库连接池初始化完成";
+    ensureUserTableSchema();
 
     mainLoop_ = std::make_unique<EventLoop>(networkConfig_->getEpollMode());
     InetAddress addr(networkConfig_->getPort(), networkConfig_->getIp());
@@ -417,6 +430,51 @@ static bool execSQL(MYSQL *mysql, const std::string &sql)
     return true;
 }
 
+static void setJsonError(HttpResponse *resp, HttpResponse::HttpStatusCode code, const std::string &message)
+{
+    resp->setStatusCode(code);
+    resp->setContentType("application/json");
+    resp->setBody(json({{"status", "error"}, {"message", message}}).dump());
+}
+
+static void logStmtError(const std::string &context, MYSQL_STMT *stmt)
+{
+    if (!stmt)
+        return;
+    DLOG_ERROR << context << " errno=" << mysql_stmt_errno(stmt) << " error=" << mysql_stmt_error(stmt);
+}
+
+static void ensureUserTableSchema()
+{
+    Connection *conn = nullptr;
+    ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
+    if (!conn || !conn->m_conn)
+    {
+        DLOG_WARN << "[DB] 无法获取数据库连接，跳过user表结构检查";
+        return;
+    }
+
+    execSQL(conn->m_conn,
+            "CREATE TABLE IF NOT EXISTS `user` ("
+            "  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,"
+            "  `username` VARCHAR(64) NOT NULL,"
+            "  `password` CHAR(64) NOT NULL,"
+            "  `salt` CHAR(32) NOT NULL,"
+            "  PRIMARY KEY (`id`),"
+            "  UNIQUE KEY `uk_user_username` (`username`)"
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    const char *alterSql = "ALTER TABLE `user` ADD COLUMN `salt` CHAR(32) NOT NULL DEFAULT '' AFTER `password`";
+    if (mysql_query(conn->m_conn, alterSql))
+    {
+        unsigned int err = mysql_errno(conn->m_conn);
+        if (err != 1060) // ER_DUP_FIELDNAME
+        {
+            DLOG_ERROR << "[DB] user表结构迁移失败 errno=" << err << " error=" << mysql_error(conn->m_conn);
+        }
+    }
+}
+
 /**
  * @brief JWT认证检查函数
  * @param req HTTP请求对象
@@ -435,20 +493,42 @@ bool checkAuth(const HttpRequest &req, int &user_id)
         std::string token = auth.substr(7);
         try
         {
-            // 从ConfigManager获取最新的JWT Secret
             auto baseConfig = ConfigManager::getInstance().getBaseConfig();
             if (!baseConfig)
                 return false;
 
             auto decoded = jwt::decode(token);
-            // 使用()构造函数，而不是{}
-            auto verifier = jwt::verify().allow_algorithm(jwt::algorithm::hs256(baseConfig->getJwtSecret()));
+
+            // 验证签发者和过期时间
+            auto verifier = jwt::verify()
+                                .allow_algorithm(jwt::algorithm::hs256(baseConfig->getJwtSecret()))
+                                .with_issuer(baseConfig->getJwtIssuer());
+
             verifier.verify(decoded);
+
+            // 显式检查过期时间
+            if (decoded.has_expires_at())
+            {
+                auto exp = decoded.get_expires_at();
+                if (exp < std::chrono::system_clock::now())
+                    return false;
+            }
+            else
+            {
+                return false; // 拒绝没有过期时间的令牌
+            }
+
             user_id = std::stoi(decoded.get_payload_claim("user_id").as_string());
             return true;
         }
+        catch (const std::exception &e)
+        {
+            DLOG_WARN << "[Auth] JWT验证失败: " << e.what();
+            return false;
+        }
         catch (...)
         {
+            DLOG_WARN << "[Auth] JWT验证失败: 未知错误";
             return false;
         }
     }
@@ -484,35 +564,78 @@ void userRegister(const HttpRequest &req, HttpResponse *resp)
         return;
     }
 
-    // 对密码进行SHA-256哈希
-    std::string hashedPassword = sha256(password);
-
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
-        resp->setStatusCode(HttpResponse::k500InternalServerError);
-        resp->setContentType("application/json");
-        resp->setBody(R"({"status":"error", "message":"服务器内部错误，无法连接数据库"})");
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误，无法连接数据库");
         return;
     }
 
-    char sql[512];
-    snprintf(sql, sizeof(sql), "INSERT INTO user(username, password) VALUES('%s', '%s')",
-             username.c_str(), hashedPassword.c_str());
+    // 生成盐值并使用PBKDF2哈希密码
+    std::string salt = generateSalt();
+    std::string hashedPassword = hashPassword(password, salt);
 
-    if (!execSQL(conn->m_conn, sql))
+    // 使用预编译语句防止SQL注入
+    MYSQL_STMT *stmt = mysql_stmt_init(conn->m_conn);
+    if (!stmt)
     {
-        resp->setStatusCode(HttpResponse::k409Conflict);
-        resp->setContentType("application/json");
-        resp->setBody(R"({"status":"error", "message":"用户名已存在"})");
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
     }
-    else
+
+    const char *sql = "INSERT INTO `user`(`username`, `password`, `salt`) VALUES(?, ?, ?)";
+    if (mysql_stmt_prepare(stmt, sql, strlen(sql)))
     {
-        resp->setStatusCode(HttpResponse::k201Created);
-        resp->setContentType("application/json");
-        resp->setBody(R"({"status":"success", "message":"用户注册成功"})");
+        logStmtError("[Register] mysql_stmt_prepare失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误（数据库表结构或SQL异常）");
+        return;
     }
+
+    MYSQL_BIND bind[3];
+    memset(bind, 0, sizeof(bind));
+
+    bind[0].buffer_type = MYSQL_TYPE_STRING;
+    bind[0].buffer = (char *)username.c_str();
+    bind[0].buffer_length = username.length();
+
+    bind[1].buffer_type = MYSQL_TYPE_STRING;
+    bind[1].buffer = (char *)hashedPassword.c_str();
+    bind[1].buffer_length = hashedPassword.length();
+
+    bind[2].buffer_type = MYSQL_TYPE_STRING;
+    bind[2].buffer = (char *)salt.c_str();
+    bind[2].buffer_length = salt.length();
+
+    if (mysql_stmt_bind_param(stmt, bind))
+    {
+        logStmtError("[Register] mysql_stmt_bind_param失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
+    }
+
+    if (mysql_stmt_execute(stmt))
+    {
+        unsigned int err = mysql_stmt_errno(stmt);
+        logStmtError("[Register] mysql_stmt_execute失败", stmt);
+        mysql_stmt_close(stmt);
+        if (err == 1062) // ER_DUP_ENTRY
+        {
+            setJsonError(resp, HttpResponse::k409Conflict, "用户名已存在");
+        }
+        else
+        {
+            setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误（数据库执行失败）");
+        }
+        return;
+    }
+
+    mysql_stmt_close(stmt);
+    resp->setStatusCode(HttpResponse::k201Created);
+    resp->setContentType("application/json");
+    resp->setBody(R"({"status":"success", "message":"用户注册成功"})");
 }
 
 /**
@@ -544,61 +667,126 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
         return;
     }
 
-    // 对密码进行SHA-256哈希
-    std::string hashedPassword = sha256(password);
-
     Connection *conn = nullptr;
     ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
     if (!conn || !conn->m_conn)
     {
-        resp->setStatusCode(HttpResponse::k500InternalServerError);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误，无法连接数据库");
         return;
     }
 
-    char sql[256];
-    snprintf(sql, sizeof(sql), "SELECT id, password FROM user WHERE username='%s'", username.c_str());
-
-    if (mysql_query(conn->m_conn, sql) == 0)
+    // 使用预编译语句防止SQL注入
+    MYSQL_STMT *stmt = mysql_stmt_init(conn->m_conn);
+    if (!stmt)
     {
-        MYSQL_RES *res = mysql_store_result(conn->m_conn);
-        if (res && mysql_num_rows(res) > 0)
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
+    }
+
+    const char *sql = "SELECT `id`, `password`, `salt` FROM `user` WHERE `username`=?";
+    if (mysql_stmt_prepare(stmt, sql, strlen(sql)))
+    {
+        logStmtError("[Login] mysql_stmt_prepare失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误（数据库表结构或SQL异常）");
+        return;
+    }
+
+    // 绑定输入参数（用户名）
+    MYSQL_BIND bind_param[1];
+    memset(bind_param, 0, sizeof(bind_param));
+    bind_param[0].buffer_type = MYSQL_TYPE_STRING;
+    bind_param[0].buffer = (char *)username.c_str();
+    bind_param[0].buffer_length = username.length();
+
+    if (mysql_stmt_bind_param(stmt, bind_param))
+    {
+        logStmtError("[Login] mysql_stmt_bind_param失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
+    }
+
+    if (mysql_stmt_execute(stmt))
+    {
+        logStmtError("[Login] mysql_stmt_execute失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误（数据库执行失败）");
+        return;
+    }
+
+    // 准备接收查询结果
+    int user_id;
+    char db_password[128];
+    char db_salt[64];
+    unsigned long password_len, salt_len;
+
+    // 绑定输出结果
+    MYSQL_BIND bind_result[3];
+    memset(bind_result, 0, sizeof(bind_result));
+
+    bind_result[0].buffer_type = MYSQL_TYPE_LONG;
+    bind_result[0].buffer = &user_id;
+
+    bind_result[1].buffer_type = MYSQL_TYPE_STRING;
+    bind_result[1].buffer = db_password;
+    bind_result[1].buffer_length = sizeof(db_password);
+    bind_result[1].length = &password_len;
+
+    bind_result[2].buffer_type = MYSQL_TYPE_STRING;
+    bind_result[2].buffer = db_salt;
+    bind_result[2].buffer_length = sizeof(db_salt);
+    bind_result[2].length = &salt_len;
+
+    if (mysql_stmt_bind_result(stmt, bind_result))
+    {
+        logStmtError("[Login] mysql_stmt_bind_result失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
+    }
+
+    if (mysql_stmt_store_result(stmt))
+    {
+        logStmtError("[Login] mysql_stmt_store_result失败", stmt);
+        mysql_stmt_close(stmt);
+        setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误");
+        return;
+    }
+
+    if (mysql_stmt_fetch(stmt) == 0)
+    {
+        // 获取数据库中的密码哈希和盐值
+        std::string dbPasswordHash(db_password, password_len);
+        std::string salt(db_salt, salt_len);
+        std::string hashedPassword = hashPassword(password, salt);
+
+        if (hashedPassword == dbPasswordHash)
         {
-            MYSQL_ROW row = mysql_fetch_row(res);
-            std::string dbPasswordHash = row[1];
-
-            if (hashedPassword == dbPasswordHash)
+            // 密码验证成功，生成JWT令牌
+            auto baseConfig = ConfigManager::getInstance().getBaseConfig();
+            if (!baseConfig)
             {
-                // 密码验证成功，生成JWT令牌
-                int user_id = atoi(row[0]);
-                auto baseConfig = ConfigManager::getInstance().getBaseConfig();
-                if (!baseConfig)
-                {
-                    resp->setStatusCode(HttpResponse::k500InternalServerError);
-                    return;
-                }
-
-                std::string secret = baseConfig->getJwtSecret();
-                int expire = baseConfig->getJwtExpireSeconds();
-                std::string issuer = baseConfig->getJwtIssuer();
-
-                auto token = jwt::create()
-                                 .set_issuer(issuer)
-                                 .set_type("JWS")
-                                 .set_payload_claim("user_id", jwt::claim(std::to_string(user_id)))
-                                 .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds(expire))
-                                 .sign(jwt::algorithm::hs256(secret));
-
-                json resp_json = {{"status", "success"}, {"token", token}};
-                resp->setStatusCode(HttpResponse::k200Ok);
-                resp->setContentType("application/json");
-                resp->setBody(resp_json.dump());
+                mysql_stmt_close(stmt);
+                setJsonError(resp, HttpResponse::k500InternalServerError, "服务器内部错误（JWT配置缺失）");
+                return;
             }
-            else
-            {
-                resp->setStatusCode(HttpResponse::k401Unauthorized);
-                resp->setContentType("application/json");
-                resp->setBody(R"({"status":"error", "message":"用户名或密码错误"})");
-            }
+
+            std::string secret = baseConfig->getJwtSecret();
+            int expire = baseConfig->getJwtExpireSeconds();
+            std::string issuer = baseConfig->getJwtIssuer();
+
+            auto token = jwt::create()
+                             .set_issuer(issuer)
+                             .set_type("JWS")
+                             .set_payload_claim("user_id", jwt::claim(std::to_string(user_id)))
+                             .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds(expire))
+                             .sign(jwt::algorithm::hs256(secret));
+
+            json resp_json = {{"status", "success"}, {"token", token}};
+            resp->setStatusCode(HttpResponse::k200Ok);
+            resp->setContentType("application/json");
+            resp->setBody(resp_json.dump());
         }
         else
         {
@@ -606,14 +794,15 @@ void userLogin(const HttpRequest &req, HttpResponse *resp)
             resp->setContentType("application/json");
             resp->setBody(R"({"status":"error", "message":"用户名或密码错误"})");
         }
-        mysql_free_result(res);
     }
     else
     {
-        resp->setStatusCode(HttpResponse::k500InternalServerError);
+        resp->setStatusCode(HttpResponse::k401Unauthorized);
         resp->setContentType("application/json");
-        resp->setBody(R"({"status":"error", "message":"服务器内部错误"})");
+        resp->setBody(R"({"status":"error", "message":"用户名或密码错误"})");
     }
+
+    mysql_stmt_close(stmt);
 }
 
 /**

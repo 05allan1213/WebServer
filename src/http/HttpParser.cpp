@@ -174,8 +174,8 @@ bool HttpParser::parseRequest(Buffer *buf)
         {
             if (buf->readableBytes() >= chunkLeft_ + 2) // +2 for \r\n
             {
-                // 读取分块数据
-                request_.setBody(buf->peek(), chunkLeft_);
+                // 追加分块数据到消息体（支持多块拼接）
+                request_.appendBody(buf->peek(), chunkLeft_);
                 buf->retrieve(chunkLeft_);
                 buf->retrieve(2); // 跳过\r\n
                 state_ = HttpRequestParseState::kExpectChunkSize;

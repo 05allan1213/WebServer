@@ -152,8 +152,19 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
     // 根据Connection头部和HTTP版本判断是否关闭连接
-    const std::string &connection = req.getHeader("Connection").value_or("close");
-    bool close = (connection == "close") || (req.getVersion() == HttpRequest::Version::kHttp10 && connection != "Keep-Alive");
+    // HTTP/1.1默认保持连接，HTTP/1.0默认关闭连接
+    const std::string &connection = req.getHeader("connection").value_or("");
+    bool close;
+    if (req.getVersion() == HttpRequest::Version::kHttp11)
+    {
+        // HTTP/1.1: 默认保持连接，仅在明确请求时关闭
+        close = (connection == "close");
+    }
+    else
+    {
+        // HTTP/1.0: 默认关闭连接，仅在明确请求时保持
+        close = (connection != "keep-alive");
+    }
     HttpResponse response(close);
 
     // 调用用户设置的HTTP回调函数处理请求
@@ -171,6 +182,12 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
         response.appendToBuffer(&buf);
         conn->send(buf.retrieveAllAsString());
         return;
+    }
+
+    // 对于HEAD请求，不包含响应体（但保留Content-Length等头部）
+    if (req.getMethod() == HttpRequest::Method::kHead)
+    {
+        response.setIncludeBody(false);
     }
 
     // 序列化响应并发送

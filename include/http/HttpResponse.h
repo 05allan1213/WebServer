@@ -31,6 +31,7 @@ public:
         k401Unauthorized = 401,        // 未认证
         k403Forbidden = 403,           // 禁止访问
         k404NotFound = 404,            // 未找到
+        k405MethodNotAllowed = 405,    // 方法不允许
         k409Conflict = 409,            // 资源冲突（例如，用户名已存在）
         k500InternalServerError = 500, // 服务器错误
     };
@@ -95,14 +96,16 @@ public:
     }
 
     /**
-     * @brief 设置一个文件路径用于零拷贝发送
+     * @brief 设置一个文件路径用于零拷贝发送（未实现，保留用于未来扩展）
      * @param path 要发送的文件的完整路径
+     * @note 当前版本不支持零拷贝，此接口保留用于未来实现
      */
     void setFilePath(const std::string &path) { filePath_ = path; }
 
     /**
-     * @brief 获取用于零拷贝的文件路径
+     * @brief 获取用于零拷贝的文件路径（未实现，保留用于未来扩展）
      * @return std::optional<std::string> 包含文件路径，如果未设置则为空
+     * @note 当前版本不支持零拷贝，此接口保留用于未来实现
      */
     const std::optional<std::string> &getFilePath() const { return filePath_; }
 
@@ -149,12 +152,19 @@ public:
      */
     void setCacheControl(const std::string &value);
 
+    /**
+     * @brief 设置是否在响应中包含body（用于HEAD请求）
+     * @param include false表示只发送头部，不发送body
+     */
+    void setIncludeBody(bool include) { includeBody_ = include; }
+
 private:
     HttpStatusCode statusCode_;                            // 响应状态码
     std::string statusMessage_;                            // 状态消息
     std::unordered_map<std::string, std::string> headers_; // 响应头部
     std::string body_;                                     // 响应体
     bool closeConnection_;                                 // 是否关闭连接
-    std::optional<std::string> filePath_;                  // 文件路径，用于零拷贝发送
+    std::optional<std::string> filePath_;                  // 文件路径（未实现，保留用于未来扩展）
     bool chunked_ = false;                                 // 是否启用分块传输编码
+    bool includeBody_ = true;                              // 是否在响应中包含body（HEAD请求为false）
 };

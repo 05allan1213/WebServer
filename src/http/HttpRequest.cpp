@@ -21,6 +21,12 @@ void HttpRequest::setBody(const char *start, size_t len)
     DLOG_DEBUG << "[HttpRequest] setBody, 长度: " << len;
 }
 
+void HttpRequest::appendBody(const char *start, size_t len)
+{
+    body_.append(start, len);
+    DLOG_DEBUG << "[HttpRequest] appendBody, 长度: " << len << ", 总长度: " << body_.size();
+}
+
 bool HttpRequest::setMethod(const char *start, const char *end)
 {
     std::string m(start, end);

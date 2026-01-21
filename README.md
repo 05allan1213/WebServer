@@ -78,9 +78,15 @@ CREATE TABLE IF NOT EXISTS `user` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `username` VARCHAR(64) NOT NULL,
   `password` CHAR(64) NOT NULL,
+  `salt` CHAR(32) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+> 如果你之前已按旧版文档创建过表（缺少 `salt` 列），需要先执行一次迁移：
+```sql
+ALTER TABLE `user` ADD COLUMN `salt` CHAR(32) NOT NULL DEFAULT '' AFTER `password`;
 ```
 
 ## 快速开始

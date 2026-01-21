@@ -13,6 +13,7 @@
 
 # Compiled Dynamic libraries
 *.so
+*.so.*
 *.dylib
 *.dll
 
@@ -45,3 +46,6 @@ logs/
 .clang-format
 AGENTS.md
 CLAUDE.md
+
+# Local config files
+*.local.yml

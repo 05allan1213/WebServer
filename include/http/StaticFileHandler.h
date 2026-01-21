@@ -9,7 +9,7 @@
  * 用于处理静态文件请求，将URL路径映射到本地文件系统，并返回相应内容。
  * 支持处理常见的HTTP状态码（200、400、403、404、500等）。
  * 自动设置适当的MIME-Type和其他响应头。
- * 支持零拷贝文件发送，提高大文件传输效率。
+ * HEAD请求将只返回头部并设置Content-Length。
  */
 class StaticFileHandler
 {
@@ -30,7 +30,6 @@ public:
      * 4. 检查请求合法性，不合法返回400
      * 5. 读取文件内容，失败返回500
      * 6. 设置适当的响应头和内容
-     * 7. 支持零拷贝文件发送优化
      */
     static bool handle(const HttpRequest &req, HttpResponse *resp, const std::string &baseDir = "web_static");
 };

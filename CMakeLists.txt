@@ -56,7 +56,8 @@ target_link_libraries(webserver
 )
 
 # --- 统一的单元测试可执行文件 ---
-file(GLOB_RECURSE TEST_SOURCES 
+file(GLOB_RECURSE TEST_SOURCES
+    CONFIGURE_DEPENDS
     "src/tests/test_*.cpp"
 )
 add_executable(webserver_test ${TEST_SOURCES})

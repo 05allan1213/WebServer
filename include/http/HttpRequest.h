@@ -140,6 +140,13 @@ public:
     void setBody(const char *start, size_t len);
 
     /**
+     * @brief 追加消息体（用于chunked编码）
+     * @param start 体起始指针
+     * @param len 体长度
+     */
+    void appendBody(const char *start, size_t len);
+
+    /**
      * @brief 获取消息体（const版本）
      * @return 消息体字符串
      */
