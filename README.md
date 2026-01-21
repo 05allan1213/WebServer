@@ -1,5 +1,7 @@
 # WebServer 项目简介
 
+**项目定位**：以学习型高性能网络服务器框架为主，覆盖 Reactor、多线程、HTTP/HTTPS、WebSocket、日志、配置等完整工程链路；同时具备基础可部署能力，适合在小型场景进行验证与演示，但仍需根据实际生产需求做安全、稳定性与运维完善。
+
 这是一个基于 C++11/17 的高性能网络服务器框架，采用现代 C++最佳实践，核心采用 Reactor 模式，支持高并发、高可扩展性，适合学习、研究和实际工程应用。
 
 ## 主要特性
@@ -54,4 +56,65 @@
 
 # 运行压力测试
 ./build.sh run-bench
+```
+
+## 依赖安装
+
+```bash
+sudo apt update
+sudo apt install -y \
+    libyaml-cpp-dev \
+    libssl-dev \
+    libmysqlclient-dev \
+    libgtest-dev \
+    libbenchmark-dev \
+    libcurl4-openssl-dev
+```
+
+注意：`jwt-cpp` 是 header-only 库，可能需要手动安装：
+
+```bash
+# 安装 jwt-cpp
+git clone https://github.com/Thalhammer/jwt-cpp.git
+cd jwt-cpp
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+sudo make install
+```
+
+## 功能演示脚本/步骤
+
+> 默认启用 HTTPS，监听 `127.0.0.1:8443`；如需 HTTP，请在 `configs/config.yml` 中关闭 `network.ssl.enable`。
+
+```bash
+# 1) 构建与启动
+./build.sh build
+./build.sh run
+```
+
+```bash
+# 2) 访问静态页（index.html）
+# 浏览器打开：https://127.0.0.1:8443/
+# 或使用 curl（自签证书需 -k）
+curl -k https://127.0.0.1:8443/
+```
+
+```bash
+# 3) 调用 /api/login（需数据库中已有用户）
+# 若没有用户，可先注册：
+curl -k -X POST https://127.0.0.1:8443/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test_user","password":"123456"}'
+
+# 登录获取 JWT
+curl -k -X POST https://127.0.0.1:8443/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test_user","password":"123456"}'
+```
+
+```bash
+# 4) WebSocket /echo
+# 使用 websocat 或 wscat 连接后发送任意文本，即可收到原样回显
+websocat -k wss://127.0.0.1:8443/echo
+# 输入 hello -> 服务器回 hello（示例）
 ```
