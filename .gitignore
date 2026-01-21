@@ -43,4 +43,5 @@ logs/
 # IDE
 .vscode/
 .clang-format
-
+AGENTS.md
+CLAUDE.md

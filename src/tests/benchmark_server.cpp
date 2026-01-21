@@ -14,6 +14,8 @@
 std::unique_ptr<WebServer> g_server;
 std::unique_ptr<std::thread> g_server_thread;
 std::shared_ptr<NetworkConfig> g_net_config;
+std::string g_base_url;
+bool g_use_ssl = false;
 
 // --- CURL 相关函数 ---
 // 回调函数：丢弃响应体数据（节省内存，不处理内容）
@@ -34,6 +36,12 @@ int simple_http_request(const std::string &url,
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method.c_str());
+    // 禁用代理，避免本地请求走系统代理导致阻塞
+    curl_easy_setopt(curl, CURLOPT_PROXY, "");
+    curl_easy_setopt(curl, CURLOPT_NOPROXY, "127.0.0.1,localhost");
+    // 避免卡死：设置连接/总超时
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 5000L);
 
     if (method == "POST")
     {
@@ -46,9 +54,12 @@ int simple_http_request(const std::string &url,
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     }
 
-    // 跳过证书验证（自签证书环境下必需）
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    if (g_use_ssl)
+    {
+        // 跳过证书验证（自签证书环境下必需）
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    }
 
     // 忽略响应体内容
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -68,6 +79,23 @@ int simple_http_request(const std::string &url,
 
     curl_easy_cleanup(curl);
     return static_cast<int>(response_code);
+}
+
+static void wait_for_server_ready()
+{
+    // 轮询等待服务就绪，避免固定 sleep 导致偶发连接失败
+    const int max_attempts = 30;
+    const int wait_ms = 200;
+    std::string url = g_base_url + "/";
+    for (int i = 0; i < max_attempts; ++i)
+    {
+        int status = simple_http_request(url, "GET");
+        if (status == 200 || status == 404)
+        {
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+    }
 }
 
 // --- 内部基准测试用例 ---
@@ -106,7 +134,7 @@ static void BM_SimpleGetRequest(benchmark::State &state)
 // Benchmark 测试 - GET https://127.0.0.1:8443/
 static void BM_RealHttpGetRoot(benchmark::State &state)
 {
-    std::string url = "https://127.0.0.1:8443/";
+    std::string url = g_base_url + "/";
     for (auto _ : state)
     {
         int status_code = simple_http_request(url, "GET");
@@ -121,7 +149,7 @@ static void BM_RealHttpGetRoot(benchmark::State &state)
 // Benchmark 测试 - POST https://127.0.0.1:8443/api/login
 static void BM_RealHttpPostLogin(benchmark::State &state)
 {
-    std::string url = "https://127.0.0.1:8443/api/login";
+    std::string url = g_base_url + "/api/login";
     std::string body = R"({"username":"ayp","password":"123456"})";
     for (auto _ : state)
     {
@@ -157,18 +185,27 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    g_use_ssl = g_net_config->isSSLEnabled();
+    std::string host = g_net_config->getIp();
+    if (host.empty() || host == "0.0.0.0")
+    {
+        host = "127.0.0.1";
+    }
+    std::string scheme = g_use_ssl ? "https" : "http";
+    g_base_url = scheme + "://" + host + ":" + std::to_string(g_net_config->getPort());
+
     // 3. 在一个独立的线程中启动服务器
     //    这样做可以确保服务器的事件循环不会阻塞基准测试的运行。
     g_server = std::make_unique<WebServer>(ConfigManager::getInstance());
     g_server_thread = std::make_unique<std::thread>([&]()
                                                     { g_server->start(); });
 
-    // 等待服务器完全启动 (这是一个简化的等待，实际项目可能需要更可靠的机制)
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    DLOG_FATAL << "服务器已启动，开始运行基准测试...";
-
     // 4. 初始化curl全局环境
     curl_global_init(CURL_GLOBAL_ALL);
+
+    // 等待服务器完全启动
+    wait_for_server_ready();
+    DLOG_FATAL << "服务器已启动，开始运行基准测试...";
 
     // 5. 初始化并运行所有已注册的基准测试
     ::benchmark::Initialize(&argc, argv);

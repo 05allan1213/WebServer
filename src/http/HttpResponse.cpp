@@ -1,6 +1,7 @@
 #include "http/HttpResponse.h"
 #include <cstdio>
 #include <strings.h>
+#include <cstring>
 #include "log/Log.h"
 
 /**
