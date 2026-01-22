@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <any>
+#include <unistd.h>
 
 #include "base/Buffer.h"
 #include "Callbacks.h"
@@ -107,8 +108,9 @@ public:
      * @brief 使用零拷贝（sendfile）发送文件
      * @param filePath 要发送的文件的完整路径
      * @param closeAfterSend 发送完成后是否关闭连接
+     * @param completionCallback 文件发送完成后的回调（可选）
      */
-    void sendFile(const std::string &filePath, bool closeAfterSend);
+    void sendFile(const std::string &filePath, bool closeAfterSend, const std::function<void()> &completionCallback = nullptr);
 
     /**
      * @brief 发送WebSocket消息
@@ -122,6 +124,12 @@ public:
      * @details 关闭写端，停止发送数据，但保持读端开放
      */
     void shutdown(); // 关闭写端
+
+    /**
+     * @brief 强制关闭连接
+     * @details 立即关闭连接，不等待数据发送完成，用于错误场景或资源限制
+     */
+    void forceClose();
 
     /**
      * @brief 设置连接建立/断开回调函数
@@ -232,14 +240,26 @@ private:
      * @brief 在所属的EventLoop中执行零拷贝发送操作
      * @param filePath 文件的完整路径
      * @param closeAfterSend 发送完成后是否关闭连接
+     * @param completionCallback 文件发送完成后的回调
      */
-    void sendFileInLoop(const std::string &filePath, bool closeAfterSend);
+    void sendFileInLoop(const std::string &filePath, bool closeAfterSend, const std::function<void()> &completionCallback);
+
+    /**
+     * @brief 继续发送文件（处理部分发送）
+     */
+    void continueSendFile();
 
     /**
      * @brief 在所属的EventLoop中执行关闭操作
      * @details 这是shutdown方法的实际实现，在EventLoop线程中执行
      */
     void shutdownInLoop();
+
+    /**
+     * @brief 在所属的EventLoop中执行强制关闭操作
+     * @details 立即关闭连接，不等待数据发送完成
+     */
+    void forceCloseInLoop();
 
     /**
      * @brief 处理SSL握手
@@ -292,4 +312,49 @@ private:
 
     // SSL/TLS相关
     std::unique_ptr<SSL, decltype(&SSL_free)> ssl_; // SSL对象
+
+    // 零拷贝文件发送状态
+    struct FileSendState
+    {
+        int fd;
+        off_t offset;
+        size_t remaining;
+        bool closeAfterSend;
+        std::function<void()> completionCallback;
+    };
+    std::unique_ptr<FileSendState> fileSendState_; // 文件发送状态
+
+    // 分块文件读取状态
+    struct FileReadState
+    {
+        int fd;
+        bool closed;
+        bool closeAfterSend;
+        std::function<void()> completionCallback;
+        std::function<void()> continuation;
+
+        FileReadState() : fd(-1), closed(false), closeAfterSend(false) {}
+
+        ~FileReadState()
+        {
+            if (fd >= 0 && !closed)
+            {
+                ::close(fd);
+                closed = true;
+            }
+        }
+
+        void closeFile()
+        {
+            if (fd >= 0 && !closed)
+            {
+                ::close(fd);
+                closed = true;
+                fd = -1;
+            }
+        }
+    };
+    std::shared_ptr<FileReadState> fileReadState_; // 分块读取状态
+
+    std::function<void()> fileReadContinuation_; // 内部文件读取 continuation
 };

@@ -1,6 +1,8 @@
 #include "HttpServer.h"
 #include "net/NetworkConfig.h"
+#include "base/ThreadPool.h"
 #include <any>
+#include <algorithm>
 #include "log/Log.h"
 #include "SocketContext.h"
 
@@ -10,12 +12,13 @@
  * @param addr 监听地址
  * @param name 服务器名称
  * @param config 网络配置对象的共享指针
+ * @param threadPool 业务线程池指针（可选）
  *
  * 初始化底层TcpServer，设置连接和消息回调。
  * 为每个连接分配SocketContext用于状态管理。
  */
-HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config)
-    : server_(loop, addr, name, config)
+HttpServer::HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config, ThreadPool *threadPool)
+    : server_(loop, addr, name, config), threadPool_(threadPool)
 {
     DLOG_INFO << "HttpServer 构造: 监听地址=" << addr.toIpPort();
     server_.setConnectionCallback(
@@ -148,54 +151,265 @@ void HttpServer::onMessage(const TcpConnectionPtr &conn, Buffer *buf, Timestamp 
  * @param req HTTP请求对象
  *
  * 根据请求内容生成HTTP响应，支持连接管理和WebSocket升级。
+ * 如果配置了业务线程池，将请求处理分发到线程池，避免阻塞IO线程。
+ * WebSocket升级请求必须在IO线程处理，避免竞态。
+ *
+ * 实现 per-connection 串行调度：同一连接的请求按顺序处理，避免响应乱序。
  */
 void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 {
-    // 根据Connection头部和HTTP版本判断是否关闭连接
-    // HTTP/1.1默认保持连接，HTTP/1.0默认关闭连接
+    // WebSocket升级请求必须在IO线程处理，避免与IO线程竞态
+    auto upgradeHeader = req.getHeader("Upgrade");
+    // 大小写不敏感匹配 "websocket"
+    bool isWebSocketUpgrade = false;
+    if (upgradeHeader)
+    {
+        std::string value = *upgradeHeader;
+        std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+        isWebSocketUpgrade = value.find("websocket") != std::string::npos;
+    }
+
+    // 如果有业务线程池且不是WebSocket升级，实现 per-connection 串行调度
+    if (threadPool_ && !isWebSocketUpgrade)
+    {
+        auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
+
+        // 创建请求处理任务
+        auto processTask = [this, conn, req]() {
+            auto connPtr = conn;
+            auto request = req;
+
+            // 在业务线程处理请求
+            const std::string &connection = request.getHeader("connection").value_or("");
+            bool close;
+            if (request.getVersion() == HttpRequest::Version::kHttp11)
+            {
+                close = (connection == "close");
+            }
+            else
+            {
+                close = (connection != "keep-alive");
+            }
+            HttpResponse response(close);
+
+            if (httpCallback_)
+            {
+                httpCallback_(request, &response);
+            }
+
+            // 在IO线程中发送响应
+            connPtr->getLoop()->runInLoop([this, connPtr, request, response]()
+            {
+                if (response.getStatusCode() == HttpResponse::k101SwitchingProtocols)
+                {
+                    Buffer buf;
+                    response.appendToBuffer(&buf);
+                    connPtr->send(buf.retrieveAllAsString());
+
+                    // 标记请求处理完成
+                    auto ctx = std::any_cast<std::shared_ptr<SocketContext>>(*connPtr->getMutableContext());
+                    ctx->processingRequest = false;
+                    return;
+                }
+
+                if (request.getMethod() == HttpRequest::Method::kHead)
+                {
+                    HttpResponse headResponse = response;
+                    headResponse.setIncludeBody(false);
+                    Buffer buf;
+                    headResponse.appendToBuffer(&buf);
+                    connPtr->send(buf.retrieveAllAsString());
+                }
+                else
+                {
+                    // 检查是否使用零拷贝发送文件
+                    const auto &filePath = response.getFilePath();
+                    if (filePath.has_value() && !filePath->empty())
+                    {
+                        // 先发送响应头
+                        Buffer buf;
+                        response.appendToBuffer(&buf);
+                        connPtr->send(buf.retrieveAllAsString());
+
+                        // 创建完成回调，在文件发送完成后标记请求完成并调度下一个请求
+                        bool willClose = response.closeConnection();
+                        auto completionCallback = [this, connPtr, willClose]() {
+                            connPtr->getLoop()->runInLoop([this, connPtr, willClose]() {
+                                auto ctx = std::any_cast<std::shared_ptr<SocketContext>>(*connPtr->getMutableContext());
+                                ctx->processingRequest = false;
+
+                                // 如果决定关闭连接，清空待处理队列
+                                if (willClose)
+                                {
+                                    std::lock_guard<std::mutex> lock(ctx->taskMutex);
+                                    while (!ctx->pendingTasks.empty())
+                                    {
+                                        ctx->pendingTasks.pop();
+                                    }
+                                    return;
+                                }
+
+                                SocketContext::PendingTask nextTask;
+                                {
+                                    std::lock_guard<std::mutex> lock(ctx->taskMutex);
+                                    if (!ctx->pendingTasks.empty())
+                                    {
+                                        nextTask = std::move(ctx->pendingTasks.front());
+                                        ctx->pendingTasks.pop();
+                                        ctx->processingRequest = true;
+                                    }
+                                }
+
+                                if (nextTask)
+                                {
+                                    if (!threadPool_->submit(std::move(nextTask)))
+                                    {
+                                        // 提交失败，复位状态并关闭连接
+                                        DLOG_ERROR << "Failed to submit next task, closing connection";
+                                        ctx->processingRequest = false;
+                                        connPtr->shutdown();
+                                    }
+                                }
+                            });
+                        };
+
+                        // 使用零拷贝发送文件，传入完成回调
+                        connPtr->sendFile(*filePath, willClose, completionCallback);
+                        return;
+                    }
+
+                    // 普通响应
+                    Buffer buf;
+                    response.appendToBuffer(&buf);
+                    connPtr->send(buf.retrieveAllAsString());
+                }
+
+                if (response.closeConnection())
+                {
+                    connPtr->shutdown();
+                }
+
+                // 标记请求处理完成，检查是否有待处理的请求
+                auto ctx = std::any_cast<std::shared_ptr<SocketContext>>(*connPtr->getMutableContext());
+                ctx->processingRequest = false;
+
+                // 如果决定关闭连接，清空待处理队列
+                if (response.closeConnection())
+                {
+                    std::lock_guard<std::mutex> lock(ctx->taskMutex);
+                    while (!ctx->pendingTasks.empty())
+                    {
+                        ctx->pendingTasks.pop();
+                    }
+                    return;
+                }
+
+                SocketContext::PendingTask nextTask;
+                {
+                    std::lock_guard<std::mutex> lock(ctx->taskMutex);
+                    if (!ctx->pendingTasks.empty())
+                    {
+                        nextTask = std::move(ctx->pendingTasks.front());
+                        ctx->pendingTasks.pop();
+                        ctx->processingRequest = true;
+                    }
+                }
+
+                // 如果有待处理的请求，提交到线程池
+                if (nextTask)
+                {
+                    if (!threadPool_->submit(std::move(nextTask)))
+                    {
+                        // 提交失败，复位状态并关闭连接
+                        DLOG_ERROR << "Failed to submit next task, closing connection";
+                        ctx->processingRequest = false;
+                        connPtr->shutdown();
+                    }
+                }
+            });
+        };
+
+        // 检查是否有请求正在处理中
+        bool expected = false;
+        if (context->processingRequest.compare_exchange_strong(expected, true))
+        {
+            // 没有请求在处理，直接提交
+            if (!threadPool_->submit(std::move(processTask)))
+            {
+                // 提交失败，复位状态并返回503
+                context->processingRequest = false;
+                DLOG_ERROR << "ThreadPool queue full, returning 503";
+
+                HttpResponse response(true);
+                response.setStatusCode(HttpResponse::k503ServiceUnavailable);
+                response.setStatusMessage("Service Unavailable");
+                response.setContentType("text/plain");
+                response.setBody("Server too busy, please try again later");
+
+                Buffer buf;
+                response.appendToBuffer(&buf);
+                conn->send(buf.retrieveAllAsString());
+                conn->shutdown();
+            }
+        }
+        else
+        {
+            // 有请求在处理，加入队列
+            std::lock_guard<std::mutex> lock(context->taskMutex);
+            context->pendingTasks.push(std::move(processTask));
+        }
+        return;
+    }
+
+    // 没有线程池或WebSocket升级，直接在IO线程处理
     const std::string &connection = req.getHeader("connection").value_or("");
     bool close;
     if (req.getVersion() == HttpRequest::Version::kHttp11)
     {
-        // HTTP/1.1: 默认保持连接，仅在明确请求时关闭
         close = (connection == "close");
     }
     else
     {
-        // HTTP/1.0: 默认关闭连接，仅在明确请求时保持
         close = (connection != "keep-alive");
     }
     HttpResponse response(close);
 
-    // 调用用户设置的HTTP回调函数处理请求
     if (httpCallback_)
     {
         httpCallback_(req, &response);
     }
 
-    // 在发送响应之前，检查是否是WebSocket升级成功的响应
     if (response.getStatusCode() == HttpResponse::k101SwitchingProtocols)
     {
-        // 如果是101响应，只发送响应头和必要的空行，然后立即返回
-        // 这样可以防止后续逻辑错误地关闭连接
         Buffer buf;
         response.appendToBuffer(&buf);
         conn->send(buf.retrieveAllAsString());
         return;
     }
 
-    // 对于HEAD请求，不包含响应体（但保留Content-Length等头部）
     if (req.getMethod() == HttpRequest::Method::kHead)
     {
         response.setIncludeBody(false);
     }
 
-    // 序列化响应并发送
+    // 检查是否使用零拷贝发送文件
+    const auto &filePath = response.getFilePath();
+    if (filePath.has_value() && !filePath->empty())
+    {
+        // 先发送响应头
+        Buffer buf;
+        response.appendToBuffer(&buf);
+        conn->send(buf.retrieveAllAsString());
+
+        // 使用零拷贝发送文件（IO线程直接处理，无需完成回调）
+        conn->sendFile(*filePath, response.closeConnection(), nullptr);
+        return;
+    }
+
     Buffer buf;
     response.appendToBuffer(&buf);
     conn->send(buf.retrieveAllAsString());
 
-    // 根据响应设置决定是否关闭连接
     if (response.closeConnection())
     {
         conn->shutdown();

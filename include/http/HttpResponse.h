@@ -34,6 +34,7 @@ public:
         k405MethodNotAllowed = 405,    // 方法不允许
         k409Conflict = 409,            // 资源冲突（例如，用户名已存在）
         k500InternalServerError = 500, // 服务器错误
+        k503ServiceUnavailable = 503,  // 服务不可用
     };
 
     /**

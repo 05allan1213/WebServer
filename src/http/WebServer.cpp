@@ -3,6 +3,7 @@
 #include "base/ConfigManager.h"
 #include "base/MemoryPool.h"
 #include "base/Buffer.h"
+#include "base/ThreadPool.h"
 #include "net/NetworkConfig.h"
 #include "db/DBConfig.h"
 #include "base/BaseConfig.h"
@@ -154,23 +155,6 @@ void staticFileHandler(const HttpRequest &req, HttpResponse *resp)
 }
 
 /**
- * @brief 简单的线程池类
- */
-class ThreadPool
-{
-public:
-    /**
-     * @brief 启动线程池
-     */
-    void start() {}
-
-    /**
-     * @brief 停止线程池
-     */
-    void stop() {}
-};
-
-/**
  * @brief 构造函数，完成所有模块的初始化
  * @param configManager 配置管理器的引用
  *
@@ -209,7 +193,8 @@ WebServer::WebServer(ConfigManager &configManager)
     mainLoop_ = std::make_unique<EventLoop>(networkConfig_->getEpollMode());
     InetAddress addr(networkConfig_->getPort(), networkConfig_->getIp());
 
-    server_ = std::make_unique<HttpServer>(mainLoop_.get(), addr, "WebServer-01", networkConfig_);
+    businessPool_ = std::make_unique<ThreadPool>(networkConfig_->getThreadNum());
+    server_ = std::make_unique<HttpServer>(mainLoop_.get(), addr, "WebServer-01", networkConfig_, businessPool_.get());
 
     if (networkConfig_->isSSLEnabled())
     {
@@ -228,7 +213,6 @@ WebServer::WebServer(ConfigManager &configManager)
         DLOG_INFO << "[WebServer] HTTP服务已启用";
     }
 
-    businessPool_ = std::make_unique<ThreadPool>();
     initCallbacks();
     registerRoutes();
 }
@@ -324,7 +308,16 @@ void WebServer::initCallbacks()
 void WebServer::onHttpRequest(const HttpRequest &req, HttpResponse *resp)
 {
     auto upgradeHeader = req.getHeader("Upgrade");
-    if (upgradeHeader && upgradeHeader->find("websocket") != std::string::npos)
+    // 大小写不敏感匹配 "websocket"
+    bool isWebSocketUpgrade = false;
+    if (upgradeHeader)
+    {
+        std::string value = *upgradeHeader;
+        std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+        isWebSocketUpgrade = value.find("websocket") != std::string::npos;
+    }
+
+    if (isWebSocketUpgrade)
     {
         // WebSocket协议升级处理
         WebSocketHandler::Ptr wsHandler = router_.matchWebSocket(req);
@@ -814,8 +807,6 @@ void WebServer::start()
     if (running_.exchange(true))
         return;
     DLOG_INFO << "[WebServer] 启动...";
-    // 启动业务线程池
-    businessPool_->start();
     server_->start();
     mainLoop_->loop();
     DLOG_INFO << "[WebServer] 已停止.";
@@ -829,7 +820,6 @@ void WebServer::stop()
     if (!running_.exchange(false))
         return;
     DLOG_INFO << "[WebServer] 停止中...";
-    businessPool_->stop();
     if (!mainLoop_->isInLoopThread())
     {
         mainLoop_->quit();

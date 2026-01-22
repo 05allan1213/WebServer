@@ -48,8 +48,12 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     else if (!hasContentLength)
     {
         // 普通传输，如果没有手动设置Content-Length，则自动设置
-        snprintf(buf, sizeof(buf), "Content-Length: %zd\r\n", body_.size());
-        output->append(buf, strlen(buf));
+        // 如果设置了filePath（零拷贝模式），body_应该为空，Content-Length应该已经手动设置
+        if (!filePath_.has_value() || filePath_->empty())
+        {
+            snprintf(buf, sizeof(buf), "Content-Length: %zd\r\n", body_.size());
+            output->append(buf, strlen(buf));
+        }
     }
 
     // 检查用户是否已经设置了Connection头部
@@ -88,8 +92,8 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     // 头部和Body之间的空行
     output->append("\r\n", 2);
 
-    // 3. 添加消息体（HEAD请求不包含body）
-    if (includeBody_)
+    // 3. 添加消息体（HEAD请求不包含body，零拷贝模式也不包含body）
+    if (includeBody_ && (!filePath_.has_value() || filePath_->empty()))
     {
         if (chunked_)
         {

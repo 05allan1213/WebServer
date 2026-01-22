@@ -219,7 +219,21 @@ bool StaticFileHandler::handle(const HttpRequest &req, HttpResponse *resp, const
         return true;
     }
 
-    // GET请求：读取文件内容到内存
+    // GET请求：对于大文件使用零拷贝，小文件读取到内存
+    const size_t ZERO_COPY_THRESHOLD = 64 * 1024; // 64KB阈值
+    if (st.st_size > ZERO_COPY_THRESHOLD)
+    {
+        // 大文件：使用零拷贝发送
+        resp->setStatusCode(HttpResponse::k200Ok);
+        resp->setStatusMessage("OK");
+        resp->setContentType(getMimeType(filePath));
+        resp->setContentLength(st.st_size);
+        resp->setFilePath(filePath);
+        DLOG_INFO << "[StaticFileHandler] 使用零拷贝发送大文件: " << filePath << ", 大小: " << st.st_size;
+        return true;
+    }
+
+    // 小文件：读取文件内容到内存
     std::ifstream ifs(filePath, std::ios::binary);
     if (!ifs)
     {

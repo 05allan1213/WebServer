@@ -8,6 +8,7 @@
 #include <memory>
 
 class NetworkConfig;
+class ThreadPool;
 
 /**
  * @brief HTTP服务器类，基于TcpServer实现，负责HTTP协议的解析与业务分发
@@ -26,8 +27,9 @@ public:
      * @param addr 监听地址
      * @param name 服务器名称
      * @param config 网络配置对象的共享指针
+     * @param threadPool 业务线程池指针（可选）
      */
-    HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config);
+    HttpServer(EventLoop *loop, const InetAddress &addr, const std::string &name, std::shared_ptr<NetworkConfig> config, ThreadPool *threadPool = nullptr);
 
     /**
      * @brief 启用HTTPS
@@ -74,4 +76,5 @@ private:
 
     TcpServer server_;          // 底层TCP服务器，负责网络通信
     HttpCallback httpCallback_; // 用户设置的HTTP业务回调
+    ThreadPool *threadPool_;    // 业务线程池指针（可选）
 };
