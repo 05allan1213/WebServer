@@ -37,9 +37,11 @@ include_directories(${PROJECT_SOURCE_DIR}/include/base)
 include_directories(${PROJECT_SOURCE_DIR}/include/log)
 include_directories(${PROJECT_SOURCE_DIR}/include/net)
 include_directories(${PROJECT_SOURCE_DIR}/include/http)
+include_directories(${PROJECT_SOURCE_DIR}/include/http/handlers)
 include_directories(${PROJECT_SOURCE_DIR}/include/db)
 include_directories(${PROJECT_SOURCE_DIR}/include/ssl)
 include_directories(${PROJECT_SOURCE_DIR}/include/websocket)
+include_directories(${PROJECT_SOURCE_DIR}/include/app)
 add_subdirectory(src)
 
 # --- 主应用程序 ---

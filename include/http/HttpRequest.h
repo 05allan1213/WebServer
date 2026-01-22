@@ -120,6 +120,13 @@ public:
     void addHeader(const char *start, const char *colon, const char *end);
 
     /**
+     * @brief 设置请求头部（用于测试）
+     * @param key 头部名
+     * @param value 头部值
+     */
+    void setHeader(const std::string &key, const std::string &value);
+
+    /**
      * @brief 获取指定头部（大小写不敏感）
      * @param key 头部名
      * @return 可选值，存在则为头部值

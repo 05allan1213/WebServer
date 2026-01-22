@@ -2,6 +2,7 @@
 #include "http/WebServer.h"
 #include "base/ConfigManager.h"
 #include "log/LogManager.h"
+#include "app/Bootstrap.h"
 #include <chrono>
 #include <future>
 #include <csignal>
@@ -95,6 +96,19 @@ static void wait_for_server_ready()
             return;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+    }
+}
+
+static void ensure_test_user_exists()
+{
+    // 尝试注册测试用户（如果已存在会返回409，这是正常的）
+    std::string url = g_base_url + "/api/register";
+    std::string body = R"({"username":"ayp","password":"123456"})";
+    int status = simple_http_request(url, "POST", body);
+    // 201表示注册成功，409表示用户已存在，两者都是可接受的
+    if (status != 201 && status != 409)
+    {
+        std::cerr << "警告: 测试用户注册失败，状态码: " << status << std::endl;
     }
 }
 
@@ -194,28 +208,43 @@ int main(int argc, char **argv)
     std::string scheme = g_use_ssl ? "https" : "http";
     g_base_url = scheme + "://" + host + ":" + std::to_string(g_net_config->getPort());
 
-    // 3. 在一个独立的线程中启动服务器
+    // 3. 初始化数据库（必须在创建WebServer之前）
+    try
+    {
+        Bootstrap::initDatabase(ConfigManager::getInstance());
+        DLOG_FATAL << "数据库初始化完成";
+    }
+    catch (const std::exception &e)
+    {
+        DLOG_FATAL << "数据库初始化失败: " << e.what();
+        return 1;
+    }
+
+    // 4. 在一个独立的线程中启动服务器
     //    这样做可以确保服务器的事件循环不会阻塞基准测试的运行。
     g_server = std::make_unique<WebServer>(ConfigManager::getInstance());
     g_server_thread = std::make_unique<std::thread>([&]()
                                                     { g_server->start(); });
 
-    // 4. 初始化curl全局环境
+    // 5. 初始化curl全局环境
     curl_global_init(CURL_GLOBAL_ALL);
 
     // 等待服务器完全启动
     wait_for_server_ready();
     DLOG_FATAL << "服务器已启动，开始运行基准测试...";
 
-    // 5. 初始化并运行所有已注册的基准测试
+    // 确保测试用户存在
+    ensure_test_user_exists();
+
+    // 6. 初始化并运行所有已注册的基准测试
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();
     ::benchmark::Shutdown();
 
-    // 6. 清理curl全局环境
+    // 7. 清理curl全局环境
     curl_global_cleanup();
 
-    // 7. 停止服务器并清理资源（添加超时机制）
+    // 8. 停止服务器并清理资源（添加超时机制）
     g_server->stop();
 
     // 使用超时机制等待服务器线程结束

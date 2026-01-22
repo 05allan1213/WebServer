@@ -74,6 +74,12 @@ public:
     /**
      * @brief 初始化连接池
      * @param config 数据库配置对象
+     *
+     * @note 进程生命周期限制：
+     *       - 使用 std::call_once 确保只初始化一次
+     *       - 同一进程中 shutdown() 后再调用 init() 不会重新初始化
+     *       - 如需重启，必须重启整个进程
+     *       - 单测场景需注意：多个测试用例共享同一连接池实例
      */
     void init(const DBConfig &config);
 

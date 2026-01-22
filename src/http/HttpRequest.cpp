@@ -113,6 +113,13 @@ void HttpRequest::addHeader(const char *start, const char *colon, const char *en
     DLOG_DEBUG << "[HttpRequest] addHeader: " << field << ": " << value;
 }
 
+void HttpRequest::setHeader(const std::string &key, const std::string &value)
+{
+    std::string lowerKey = key;
+    std::transform(lowerKey.begin(), lowerKey.end(), lowerKey.begin(), ::tolower);
+    headers_[lowerKey] = value;
+}
+
 std::optional<std::string> HttpRequest::getHeader(const std::string &key) const
 {
     std::string lowerKey = key;

@@ -2,6 +2,7 @@
 #include "base/ConfigManager.h"
 #include "log/LogManager.h"
 #include "db/DBConnectionPool.h"
+#include "app/Bootstrap.h"
 #include <iostream>
 
 int main()
@@ -33,7 +34,9 @@ int main()
 
             // 使用配置初始化服务
             initLogSystem();
-            dbConnectionPool->init(*configManager.getDBConfig());
+
+            // 初始化数据库（Bootstrap 层）
+            Bootstrap::initDatabase(configManager);
 
             // 创建并运行 WebServer
             WebServer server(configManager);
@@ -59,9 +62,38 @@ int main()
     }
     catch (const std::exception &e)
     {
-        // 确保即使有异常，也能尝试记录日志并关闭
+        // 确保即使有异常，也能尝试记录日志并按正确顺序关闭所有服务
         DLOG_FATAL << "[Main] 出现异常: " << e.what();
-        LogManager::getInstance()->shutdown();
+
+        // 按依赖关系逆序关闭（与正常流程一致）
+        // 每个 shutdown() 都用 try-catch 保护，避免"异常处理中再异常"
+        try
+        {
+            ConfigManager::getInstance().shutdown();
+        }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[Main] ConfigManager shutdown 失败: " << ex.what() << std::endl;
+        }
+
+        try
+        {
+            DBConnectionPool::getInstance()->shutdown();
+        }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[Main] DBConnectionPool shutdown 失败: " << ex.what() << std::endl;
+        }
+
+        try
+        {
+            LogManager::getInstance()->shutdown();
+        }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[Main] LogManager shutdown 失败: " << ex.what() << std::endl;
+        }
+
         return 1;
     }
 

@@ -11,6 +11,7 @@
 #include <regex>
 #include <memory>
 #include <stdexcept>
+#include <type_traits>
 
 /**
  * @brief 路由节点，用于构建路由树
@@ -60,6 +61,11 @@ public:
      * @param method HTTP方法
      * @param path 路径模式
      * @param handlers 处理函数列表
+     *
+     * @note 路由匹配顺序：
+     *       1. 精确匹配优先
+     *       2. 正则匹配按注册顺序（先注册先匹配）
+     *       3. 通配路由（如 /*）必须最后注册，否则会截胡后续路由
      */
     template <typename... Handlers>
     void add(const std::string &method, const std::string &path, Handlers... handlers);
@@ -142,10 +148,10 @@ private:
      */
     void buildChain(MiddlewareChain &chain) {} // 递归终止
 
-    MiddlewareChain globalMiddlewares_;                                  // 全局中间件链
-    std::unordered_map<std::string, std::unique_ptr<RouteNode>> routes_; // 精确匹配路由表
-    std::vector<std::pair<std::regex, RouteNode *>> regexRoutes_;        // 正则匹配路由表
-    std::unordered_map<std::string, WebSocketHandler::Ptr> wsRoutes_;    // WebSocket路由表
+    MiddlewareChain globalMiddlewares_;                                 // 全局中间件链
+    std::unordered_map<std::string, std::shared_ptr<RouteNode>> routes_; // 精确匹配路由表
+    std::vector<std::pair<std::regex, std::shared_ptr<RouteNode>>> regexRoutes_; // 正则匹配路由表
+    std::unordered_map<std::string, WebSocketHandler::Ptr> wsRoutes_;   // WebSocket路由表
 };
 
 // --- 模板实现必须在头文件中 ---
@@ -156,43 +162,50 @@ void Router::add(const std::string &method, const std::string &path, Handlers...
     MiddlewareChain chain;
     buildChain(chain, handlers...);
 
-    std::unique_ptr<RouteNode> node = std::make_unique<RouteNode>();
+    auto it = routes_.find(path);
+    std::shared_ptr<RouteNode> node;
+
+    if (it != routes_.end())
+    {
+        node = it->second;
+    }
+    else
+    {
+        node = std::make_shared<RouteNode>();
+
+        if (path.find(':') != std::string::npos || path.find('*') != std::string::npos)
+        {
+            std::string regexPath = path;
+            std::regex paramRegex(":([a-zA-Z0-9_]+)");
+            auto words_begin = std::sregex_iterator(path.begin(), path.end(), paramRegex);
+            auto words_end = std::sregex_iterator();
+
+            for (std::sregex_iterator i = words_begin; i != words_end; ++i)
+            {
+                node->paramNames.push_back((*i)[1].str());
+            }
+
+            regexPath = std::regex_replace(regexPath, paramRegex, "([^/]+)");
+            regexPath = std::regex_replace(regexPath, std::regex("\\*"), ".*");
+
+            try
+            {
+                std::regex compiledRegex("^" + regexPath + "$");
+                routes_[path] = node;
+                regexRoutes_.emplace_back(std::move(compiledRegex), node);
+            }
+            catch (const std::regex_error &e)
+            {
+                throw std::runtime_error("Invalid regex in path: " + path);
+            }
+        }
+        else
+        {
+            routes_[path] = node;
+        }
+    }
+
     node->handlers[method] = std::move(chain);
-
-    // 检查路径是否包含参数（:param）或通配符（*）
-    if (path.find(':') != std::string::npos || path.find('*') != std::string::npos)
-    {
-        std::string regexPath = path;
-        std::regex paramRegex(":([a-zA-Z0-9_]+)");
-        auto words_begin = std::sregex_iterator(path.begin(), path.end(), paramRegex);
-        auto words_end = std::sregex_iterator();
-
-        // 提取参数名并存储
-        for (std::sregex_iterator i = words_begin; i != words_end; ++i)
-        {
-            node->paramNames.push_back((*i)[1].str());
-        }
-
-        // 将路径模式转换为正则表达式
-        regexPath = std::regex_replace(regexPath, paramRegex, "([^/]+)");
-        regexPath = std::regex_replace(regexPath, std::regex("\\*"), ".*");
-
-        try
-        {
-            // 将节点的所有权移到routes_ map中，并让regexRoutes_持有裸指针
-            RouteNode *rawNodePtr = node.get();
-            routes_[path] = std::move(node);
-            regexRoutes_.emplace_back(std::regex("^" + regexPath + "$"), rawNodePtr);
-        }
-        catch (const std::regex_error &e)
-        {
-            throw std::runtime_error("Invalid regex in path: " + path);
-        }
-    }
-    else // 精确匹配路径
-    {
-        routes_[path] = std::move(node);
-    }
 }
 
 template <typename T, typename... Rest>

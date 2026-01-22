@@ -117,6 +117,10 @@ WebSocketParser::ParseResult WebSocketParser::parse(Buffer *buf, const FrameCall
                 onFrame(opcode_, payload_data);
 
                 state_ = READ_HEADER; // 重置状态机，准备解析下一帧
+
+                // 如果缓冲区没有更多数据，返回OK
+                if (buf->readableBytes() == 0)
+                    return OK;
                 // 继续循环，尝试解析缓冲区中的更多帧
             }
             break;

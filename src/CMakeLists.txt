@@ -6,9 +6,10 @@ file(GLOB_RECURSE HTTP_SRC_FILES CONFIGURE_DEPENDS "http/*.cpp")
 file(GLOB_RECURSE DB_SRC_FILES CONFIGURE_DEPENDS "db/*.cpp")
 file(GLOB_RECURSE SSL_SRC_FILES CONFIGURE_DEPENDS "ssl/*.cpp")
 file(GLOB_RECURSE WEBSOCKET_SRC_FILES CONFIGURE_DEPENDS "websocket/*.cpp")
+file(GLOB_RECURSE APP_SRC_FILES CONFIGURE_DEPENDS "app/*.cpp")
 
 # 合并所有源文件
-set(WEBSERVER_SRC_FILES 
+set(WEBSERVER_SRC_FILES
     ${BASE_SRC_FILES}
     ${LOG_SRC_FILES}
     ${NET_SRC_FILES}
@@ -16,6 +17,7 @@ set(WEBSERVER_SRC_FILES
     ${DB_SRC_FILES}
     ${SSL_SRC_FILES}
     ${WEBSOCKET_SRC_FILES}
+    ${APP_SRC_FILES}
 )
 
 # 创建动态库
@@ -37,9 +39,11 @@ target_include_directories(webserver_lib
         ${CMAKE_SOURCE_DIR}/include/log
         ${CMAKE_SOURCE_DIR}/include/net
         ${CMAKE_SOURCE_DIR}/include/http
+        ${CMAKE_SOURCE_DIR}/include/http/handlers
         ${CMAKE_SOURCE_DIR}/include/db
         ${CMAKE_SOURCE_DIR}/include/ssl
         ${CMAKE_SOURCE_DIR}/include/websocket
+        ${CMAKE_SOURCE_DIR}/include/app
 )
 
 # 查找并链接所需的第三方库

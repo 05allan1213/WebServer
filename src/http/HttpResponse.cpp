@@ -43,7 +43,7 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     if (chunked_)
     {
         // 分块传输编码，设置Transfer-Encoding头部
-        output->append("Transfer-Encoding: chunked\r\n", 25);
+        output->append("Transfer-Encoding: chunked\r\n", 28);
     }
     else if (!hasContentLength)
     {

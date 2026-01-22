@@ -85,6 +85,3 @@ private:
     std::atomic_bool running_;                 // 运行状态标志，线程安全
     Router router_;                            // 路由器，负责路由和中间件管理
 };
-
-// JWT认证检查函数声明
-bool checkAuth(const HttpRequest &req, int &user_id);

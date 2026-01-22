@@ -85,7 +85,7 @@ RouteMatchResult Router::match(const std::string &method, const std::string &pat
             std::smatch match;
             if (std::regex_match(path, match, pair.first))
             {
-                node = pair.second;
+                node = pair.second.get();
                 // 提取路径参数
                 if (match.size() > 1)
                 {
