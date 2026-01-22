@@ -106,7 +106,17 @@ ALTER TABLE `user` ADD COLUMN `salt` CHAR(32) NOT NULL DEFAULT '' AFTER `passwor
 
 ## 功能演示脚本/步骤
 
-> 默认启用 HTTPS，监听 `127.0.0.1:8443`；如需 HTTP，请在 `configs/config.yml` 中关闭 `network.ssl.enable`。
+> **首次运行前的准备：**
+> 1. 复制配置文件：`cp configs/config.example.yml configs/config.yml`
+> 2. 编辑 `configs/config.yml`，填写数据库密码、JWT密钥等敏感信息
+> 3. 生成自签名证书（默认启用 HTTPS）：
+>    ```bash
+>    mkdir -p certs
+>    openssl req -x509 -newkey rsa:4096 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1"
+>    ```
+> 4. 如需使用 HTTP，在 `configs/config.yml` 中设置 `network.ssl.enable: false`
+>
+> 默认监听 `127.0.0.1:8443`（HTTPS）。
 
 ```bash
 # 1) 构建与启动

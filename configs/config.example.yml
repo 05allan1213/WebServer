@@ -1,3 +1,6 @@
+# WebServer 配置示例文件
+# 复制此文件为 config.yml 并填写实际配置值
+
 base:
   buffer:
     initial_size: 1024      # 缓冲区初始大小,单位字节
@@ -20,7 +23,7 @@ network:
   epoll_mode: "LT"          # epoll触发模式,可选 "ET" 或 "LT"
   idle_timeout: 30          # 空闲连接超时时间,单位秒
   ssl:
-    enable: true # 是否启用HTTPS
+    enable: true            # 是否启用HTTPS（默认启用）
     cert_path: "certs/server.crt" # 服务器证书路径
     key_path: "certs/server.key"  # 服务器私钥路径
   thread_pool:
@@ -31,17 +34,17 @@ network:
     min_idle_threads: 1     # 线程池最小空闲线程数
 
 database:
-  host: "127.0.0.1"           # 数据库主机地址，通常为本机或远程服务器IP
-  user: "webserver"           # 数据库用户名
-  password: "123456"          # 数据库密码
-  dbname: "webserver"         # 需要连接的数据库名
-  port: 3306                  # 数据库端口号，MySQL默认3306
-  initSize: 5                 # 连接池初始连接数，建议小于maxSize
-  maxSize: 20                 # 连接池最大连接数，建议根据业务压力调整
-  maxIdleTime: 60             # 连接最大空闲时间(秒)，超时将被回收
-  connectionTimeout: 1000     # 获取连接的超时时间(毫秒)，超时返回nullptr
+  host: "127.0.0.1"         # 数据库主机地址
+  user: ""                  # 数据库用户名（请填写实际值）
+  password: ""              # 数据库密码（请填写实际值）
+  dbname: ""                # 数据库名（请填写实际值）
+  port: 3306                # 数据库端口号，MySQL默认3306
+  initSize: 5               # 连接池初始连接数
+  maxSize: 20               # 连接池最大连接数
+  maxIdleTime: 60           # 连接最大空闲时间(秒)
+  connectionTimeout: 1000   # 获取连接的超时时间(毫秒)
 
 jwt:
-  secret: "A7f$kLz9@3#xQw7$eRtYpLmN2sVbC4uH!pZx8Qw2#rTg6$MnB"  # JWT签名密钥
-  expire_seconds: 86400        # Token有效期（秒），如86400为24小时
-  issuer: "webserver"          # JWT签发者标识，可用于区分不同服务或环境
+  secret: ""                # JWT签名密钥（请填写强随机字符串）
+  expire_seconds: 86400     # Token有效期（秒），86400为24小时
+  issuer: "webserver"       # JWT签发者标识

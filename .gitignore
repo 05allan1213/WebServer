@@ -49,3 +49,9 @@ CLAUDE.md
 
 # Local config files
 *.local.yml
+configs/config.yml
+
+# SSL certificates and keys
+certs/*.key
+certs/*.crt
+certs/*.pem
