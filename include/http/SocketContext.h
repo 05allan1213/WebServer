@@ -35,12 +35,13 @@ struct SocketContext
     WebSocketHandler::Ptr wsHandler; // WebSocket处理器
 
     // Per-connection 串行调度支持
-    std::atomic<bool> processingRequest; // 是否有请求正在处理中
+    std::atomic<bool> processingRequest;  // 是否有请求正在处理中
+    std::atomic<bool> sendingFile;        // 是否正在发送文件（用于防止在文件发送期间处理新请求）
     std::queue<PendingTask> pendingTasks; // 待处理的请求队列
     std::mutex taskMutex;                 // 保护待处理队列的互斥锁
 
     /**
      * @brief 构造函数，默认初始化为HTTP状态
      */
-    SocketContext() : state(HTTP), processingRequest(false) {}
+    SocketContext() : state(HTTP), processingRequest(false), sendingFile(false) {}
 };

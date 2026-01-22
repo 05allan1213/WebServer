@@ -137,34 +137,12 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         return;
     }
 
-    // 如果正在发送文件，禁止直接写，统一排到 outputBuffer_
+    // 如果正在发送文件，拒绝新的写入，防止响应交织
     if (fileSendState_)
     {
-        DLOG_DEBUG << "File sending in progress, appending " << len << " bytes to outputBuffer_";
-        size_t oldlen = outputBuffer_.readableBytes();
-
-        // 硬限流：防止慢客户端导致内存耗尽
-        const size_t MAX_OUTPUT_BUFFER = 64 * 1024 * 1024; // 64MB
-        if (oldlen + len > MAX_OUTPUT_BUFFER)
-        {
-            DLOG_ERROR << "outputBuffer would exceed limit (" << MAX_OUTPUT_BUFFER << "), force closing connection";
-            forceClose();
-            return;
-        }
-
-        // 高水位检查
-        if (oldlen + len >= highWaterMark_ && oldlen < highWaterMark_ && highWaterMarkCallback_)
-        {
-            loop_->queueInLoop(std::bind(highWaterMarkCallback_, shared_from_this(), oldlen + len));
-        }
-
-        outputBuffer_.append(static_cast<const char *>(data), len);
-
-        // 确保写事件被打开
-        if (!channel_->isWriting())
-        {
-            channel_->enableWriting();
-        }
+        DLOG_ERROR << "Attempted to send " << len << " bytes while file sending in progress on connection "
+                   << name_ << ", force closing to prevent response interleaving";
+        forceClose();
         return;
     }
 
@@ -427,109 +405,14 @@ void TcpConnection::sendFileInLoop(const std::string &filePath, bool closeAfterS
         readState->completionCallback = completionCallback;
         fileReadState_ = readState;
 
-        // 分块读取并发送
-        const size_t CHUNK_SIZE = 64 * 1024; // 64KB
-        const size_t MAX_BUFFER_BEFORE_BACKPRESSURE = 1 * 1024 * 1024; // 1MB 背压阈值
-
-        std::weak_ptr<TcpConnection> weakSelf = shared_from_this();
-        std::function<void()> sendChunk = [weakSelf, readState, CHUNK_SIZE, MAX_BUFFER_BEFORE_BACKPRESSURE]() {
-            // 尝试获取连接对象，如果已析构则直接清理
-            auto self = weakSelf.lock();
-            if (!self)
-            {
-                readState->closeFile();
-                return;
-            }
-
-            // 检查连接状态
-            if (self->state_ != kConnected || readState->closed)
-            {
-                readState->closeFile();
-                self->fileReadState_.reset();
-                return;
-            }
-
-            // 检查背压：如果 outputBuffer 太大，等待写完成后再继续
-            if (self->outputBuffer_.readableBytes() > MAX_BUFFER_BEFORE_BACKPRESSURE)
-            {
-                DLOG_DEBUG << "Backpressure: outputBuffer size " << self->outputBuffer_.readableBytes()
-                          << " exceeds threshold, waiting for write complete";
-                // 保存 continuation，等待 handleWrite 触发
-                if (!self->fileReadContinuation_)
-                {
-                    self->fileReadContinuation_ = readState->continuation;
-                }
-                return;
-            }
-
-            // 读取一块数据
-            char buffer[CHUNK_SIZE];
-            ssize_t n = ::read(readState->fd, buffer, CHUNK_SIZE);
-
-            if (n < 0)
-            {
-                DLOG_ERROR << "Failed to read file chunk, closing connection";
-                readState->closeFile();
-                self->fileReadState_.reset();
-                self->shutdown();
-                return;
-            }
-
-            if (n == 0)
-            {
-                // 文件读取完成
-                readState->closeFile();
-                DLOG_DEBUG << "File chunked read complete";
-
-                if (readState->closeAfterSend)
-                {
-                    self->shutdownInLoop();
-                }
-
-                // 只有连接仍然正常时才调用 completionCallback
-                if (readState->completionCallback && self->state_ == kConnected)
-                    readState->completionCallback();
-
-                self->fileReadState_.reset();
-                return;
-            }
-
-            // 发送这一块数据
-            self->sendInLoop(buffer, n);
-
-            // 继续读取下一块（只通过 queueInLoop）
-            self->loop_->queueInLoop(readState->continuation);
-        };
-
-        readState->continuation = sendChunk;
-
-        // 开始读取第一块
-        loop_->queueInLoop(sendChunk);
-        return;
-    }
-
-    // outputBuffer_ 不为空，回退到读文件+send
-    // 使用分块读取 + 背压机制，避免内存耗尽
-    if (outputBuffer_.readableBytes() > 0)
-    {
-        DLOG_WARN << "outputBuffer not empty (" << outputBuffer_.readableBytes() << " bytes), fallback to chunked read+send: " << filePath;
-
-        // 打开文件
-        int filefd = ::open(filePath.c_str(), O_RDONLY);
-        if (filefd < 0)
+        // 禁用读事件，防止在文件发送期间处理新请求导致响应交织
+        if (channel_->isReading())
         {
-            DLOG_ERROR << "Failed to open file " << filePath << " for chunked reading, closing connection";
-            shutdown();
-            return;
+            channel_->disableReading();
+            readState->needReenableReading = true;
+            DLOG_DEBUG << "Disabled reading during SSL file send to prevent request pipelining";
         }
 
-        // 创建分块读取状态
-        auto readState = std::make_shared<FileReadState>();
-        readState->fd = filefd;
-        readState->closeAfterSend = closeAfterSend;
-        readState->completionCallback = completionCallback;
-        fileReadState_ = readState;
-
         // 分块读取并发送
         const size_t CHUNK_SIZE = 64 * 1024; // 64KB
         const size_t MAX_BUFFER_BEFORE_BACKPRESSURE = 1 * 1024 * 1024; // 1MB 背压阈值
@@ -572,6 +455,14 @@ void TcpConnection::sendFileInLoop(const std::string &filePath, bool closeAfterS
             if (n < 0)
             {
                 DLOG_ERROR << "Failed to read file chunk, closing connection";
+
+                // 恢复读事件（如果之前被禁用）
+                if (readState->needReenableReading && !self->channel_->isReading())
+                {
+                    self->channel_->enableReading();
+                    DLOG_DEBUG << "Re-enabled reading after SSL file read error";
+                }
+
                 readState->closeFile();
                 self->fileReadState_.reset();
                 self->shutdown();
@@ -583,6 +474,13 @@ void TcpConnection::sendFileInLoop(const std::string &filePath, bool closeAfterS
                 // 文件读取完成
                 readState->closeFile();
                 DLOG_DEBUG << "File chunked read complete";
+
+                // 恢复读事件（如果之前被禁用）
+                if (readState->needReenableReading && !self->channel_->isReading())
+                {
+                    self->channel_->enableReading();
+                    DLOG_DEBUG << "Re-enabled reading after SSL file send complete";
+                }
 
                 if (readState->closeAfterSend)
                 {
@@ -639,7 +537,23 @@ void TcpConnection::sendFileInLoop(const std::string &filePath, bool closeAfterS
     fileSendState_->closeAfterSend = closeAfterSend;
     fileSendState_->completionCallback = completionCallback;
 
-    // 开始发送
+    // 禁用读事件，防止在文件发送期间处理新请求导致响应交织
+    if (channel_->isReading())
+    {
+        channel_->disableReading();
+        fileSendState_->needReenableReading = true;
+        DLOG_DEBUG << "Disabled reading during file send to prevent request pipelining";
+    }
+
+    // 如果 outputBuffer_ 不为空（header 还没发完），只 enableWriting，等待 handleWrite 先把 header 发完
+    if (outputBuffer_.readableBytes() > 0)
+    {
+        DLOG_DEBUG << "outputBuffer has " << outputBuffer_.readableBytes() << " bytes, waiting for header to flush before sendfile";
+        channel_->enableWriting();
+        return;
+    }
+
+    // outputBuffer_ 为空，可以立即开始发送文件
     continueSendFile();
 }
 
@@ -665,6 +579,14 @@ void TcpConnection::continueSendFile()
         else
         {
             DLOG_ERROR << "sendfile error: " << strerror(errno) << ", closing connection";
+
+            // 恢复读事件（如果之前被禁用）
+            if (fileSendState_->needReenableReading && !channel_->isReading())
+            {
+                channel_->enableReading();
+                DLOG_DEBUG << "Re-enabled reading after sendfile error";
+            }
+
             ::close(fileSendState_->fd);
             fileSendState_.reset();
             shutdown();
@@ -676,6 +598,14 @@ void TcpConnection::continueSendFile()
     if (nwrote == 0 && fileSendState_->remaining > 0)
     {
         DLOG_ERROR << "sendfile returned 0 with remaining " << fileSendState_->remaining << " bytes, closing connection";
+
+        // 恢复读事件（如果之前被禁用）
+        if (fileSendState_->needReenableReading && !channel_->isReading())
+        {
+            channel_->enableReading();
+            DLOG_DEBUG << "Re-enabled reading after sendfile returned 0";
+        }
+
         ::close(fileSendState_->fd);
         fileSendState_.reset();
         channel_->disableWriting();
@@ -692,8 +622,16 @@ void TcpConnection::continueSendFile()
         DLOG_INFO << "sendfile completed";
         ::close(fileSendState_->fd);
         bool closeAfterSend = fileSendState_->closeAfterSend;
+        bool needReenableReading = fileSendState_->needReenableReading;
         auto callback = std::move(fileSendState_->completionCallback);
         fileSendState_.reset();
+
+        // 恢复读事件（如果之前被禁用）
+        if (needReenableReading && !channel_->isReading())
+        {
+            channel_->enableReading();
+            DLOG_DEBUG << "Re-enabled reading after file send complete";
+        }
 
         // 只有在 outputBuffer_ 为空时才 disableWriting
         if (outputBuffer_.readableBytes() == 0)
@@ -788,68 +726,84 @@ void TcpConnection::handleWrite()
     // 检查写状态
     if (channel_->isWriting())
     {
-        // 优先处理文件发送
+        // 优先 flush outputBuffer_，确保 header 先于文件发送
+        if (outputBuffer_.readableBytes() > 0)
+        {
+            int saveErrno = 0;
+            ssize_t n = 0;
+            // 根据是否启用SSL选择不同的写入方式
+            if (ssl_)
+            {
+                n = sslWrite(outputBuffer_.peek(), outputBuffer_.readableBytes(), &saveErrno);
+            }
+            else
+            {
+                n = outputBuffer_.writeFd(channel_->fd(), &saveErrno);
+            }
+            if (n > 0) // 成功写入部分或全部数据
+            {
+                // 移除已成功发送的数据
+                outputBuffer_.retrieve(n);
+
+                // 触发内部文件读取 continuation（背压恢复）
+                // 当 outputBuffer 降到阈值以下时恢复读取，提升吞吐
+                const size_t BACKPRESSURE_RESUME_THRESHOLD = 512 * 1024; // 512KB
+                if (fileReadContinuation_ && outputBuffer_.readableBytes() < BACKPRESSURE_RESUME_THRESHOLD)
+                {
+                    auto continuation = std::move(fileReadContinuation_);
+                    fileReadContinuation_ = nullptr;
+                    loop_->queueInLoop(continuation);
+                }
+
+                // outputBuffer_ 发送完毕后，检查是否需要发送文件
+                if (outputBuffer_.readableBytes() == 0)
+                {
+                    // 如果有文件待发送，开始发送文件
+                    if (fileSendState_)
+                    {
+                        continueSendFile();
+                        return;
+                    }
+
+                    // 没有文件发送，正常完成
+                    channel_->disableWriting();
+                    if (writeCompleteCallback_)
+                    {
+                        // 防御性编程,确保在下轮事件循环执行回调
+                        loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
+                    }
+                    if (state_ == kDisconnecting) // 如果正在断开连接,则关闭连接
+                    {
+                        shutdownInLoop();
+                    }
+                }
+                // outputBuffer_ 未发送完毕,继续等待下次 handleWrite
+            }
+            else // 写入失败
+            {
+                if ((ssl_ && (saveErrno == SSL_ERROR_WANT_READ || saveErrno == SSL_ERROR_WANT_WRITE)) ||
+                    (!ssl_ && (saveErrno == EWOULDBLOCK || saveErrno == EAGAIN)))
+                {
+                    // 正常情况
+                }
+                else
+                {
+                    DLOG_ERROR << "TcpConnection::handleWrite error";
+                }
+            }
+            return;
+        }
+
+        // outputBuffer_ 为空，检查是否有文件待发送
         if (fileSendState_)
         {
             continueSendFile();
             return;
         }
 
-        int saveErrno = 0;
-        ssize_t n = 0;
-        // 根据是否启用SSL选择不同的写入方式
-        if (ssl_)
-        {
-            n = sslWrite(outputBuffer_.peek(), outputBuffer_.readableBytes(), &saveErrno);
-        }
-        else
-        {
-            n = outputBuffer_.writeFd(channel_->fd(), &saveErrno);
-        }
-        if (n > 0) // 成功写入部分或全部数据
-        {
-            // 移除已成功发送的数据
-            outputBuffer_.retrieve(n);
-
-            // 触发内部文件读取 continuation（背压恢复）
-            // 当 outputBuffer 降到阈值以下时恢复读取，提升吞吐
-            const size_t BACKPRESSURE_RESUME_THRESHOLD = 512 * 1024; // 512KB
-            if (fileReadContinuation_ && outputBuffer_.readableBytes() < BACKPRESSURE_RESUME_THRESHOLD)
-            {
-                auto continuation = std::move(fileReadContinuation_);
-                fileReadContinuation_ = nullptr;
-                loop_->queueInLoop(continuation);
-            }
-
-            if (outputBuffer_.readableBytes() == 0)
-            // 数据全部发送完毕
-            {
-                // 告知 Channel 不再需要关注写事件
-                channel_->disableWriting();
-                if (writeCompleteCallback_)
-                {
-                    // 防御性编程,确保在下轮事件循环执行回调
-                    loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
-                }
-                if (state_ == kDisconnecting) // 如果正在断开连接,则关闭连接
-                {
-                    shutdownInLoop();
-                }
-            }
-            // 数据未发送完毕,此时channel_会继续关注写事件,再次调用handleWrite
-        }
-        else // 写入失败
-        {
-            if ((ssl_ && (saveErrno == SSL_ERROR_WANT_READ || saveErrno == SSL_ERROR_WANT_WRITE)) ||
-                (!ssl_ && (saveErrno == EWOULDBLOCK || saveErrno == EAGAIN)))
-            {
-                // 正常情况
-            }
-            else
-            {
-                DLOG_ERROR << "TcpConnection::handleWrite error";
-            }
-        }
+        // 既没有 buffer 数据也没有文件，不应该走到这里
+        DLOG_WARN << "handleWrite called but nothing to write";
+        channel_->disableWriting();
     }
     else // Channel不在写状态,却调用了handleWrite,异常
     {

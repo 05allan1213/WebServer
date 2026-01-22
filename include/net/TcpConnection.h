@@ -316,10 +316,11 @@ private:
     // 零拷贝文件发送状态
     struct FileSendState
     {
-        int fd;
-        off_t offset;
-        size_t remaining;
-        bool closeAfterSend;
+        int fd = -1;
+        off_t offset = 0;
+        size_t remaining = 0;
+        bool closeAfterSend = false;
+        bool needReenableReading = false; // 文件发送完成后是否需要恢复读事件
         std::function<void()> completionCallback;
     };
     std::unique_ptr<FileSendState> fileSendState_; // 文件发送状态
@@ -327,13 +328,14 @@ private:
     // 分块文件读取状态
     struct FileReadState
     {
-        int fd;
-        bool closed;
-        bool closeAfterSend;
+        int fd = -1;
+        bool closed = false;
+        bool closeAfterSend = false;
+        bool needReenableReading = false; // 文件发送完成后是否需要恢复读事件
         std::function<void()> completionCallback;
         std::function<void()> continuation;
 
-        FileReadState() : fd(-1), closed(false), closeAfterSend(false) {}
+        FileReadState() = default;
 
         ~FileReadState()
         {

@@ -175,7 +175,8 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
         auto context = std::any_cast<std::shared_ptr<SocketContext>>(*conn->getMutableContext());
 
         // 创建请求处理任务
-        auto processTask = [this, conn, req]() {
+        auto processTask = [this, conn, req]()
+        {
             auto connPtr = conn;
             auto request = req;
 
@@ -199,7 +200,7 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
 
             // 在IO线程中发送响应
             connPtr->getLoop()->runInLoop([this, connPtr, request, response]()
-            {
+                                          {
                 if (response.getStatusCode() == HttpResponse::k101SwitchingProtocols)
                 {
                     Buffer buf;
@@ -226,6 +227,10 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
                     const auto &filePath = response.getFilePath();
                     if (filePath.has_value() && !filePath->empty())
                     {
+                        // 标记正在发送文件
+                        auto ctx = std::any_cast<std::shared_ptr<SocketContext>>(*connPtr->getMutableContext());
+                        ctx->sendingFile = true;
+
                         // 先发送响应头
                         Buffer buf;
                         response.appendToBuffer(&buf);
@@ -237,6 +242,7 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
                             connPtr->getLoop()->runInLoop([this, connPtr, willClose]() {
                                 auto ctx = std::any_cast<std::shared_ptr<SocketContext>>(*connPtr->getMutableContext());
                                 ctx->processingRequest = false;
+                                ctx->sendingFile = false;  // 清除文件发送标志
 
                                 // 如果决定关闭连接，清空待处理队列
                                 if (willClose)
@@ -325,9 +331,26 @@ void HttpServer::onRequest(const TcpConnectionPtr &conn, const HttpRequest &req)
                         ctx->processingRequest = false;
                         connPtr->shutdown();
                     }
-                }
-            });
+                } });
         };
+
+        // 检查连接状态：如果连接未连接（包括 disconnecting/disconnected），清理队列
+        if (!conn->connected())
+        {
+            DLOG_WARN << "Connection not connected (state may be disconnecting/disconnected), dropping request";
+            // 清空待处理队列
+            std::lock_guard<std::mutex> lock(context->taskMutex);
+            while (!context->pendingTasks.empty())
+            {
+                context->pendingTasks.pop();
+            }
+            context->processingRequest = false;
+            context->sendingFile = false;
+            return;
+        }
+
+        // 如果正在发送文件，新请求会被 processingRequest 机制自动排队
+        // sendingFile 标志用于调试和状态追踪
 
         // 检查是否有请求正在处理中
         bool expected = false;
