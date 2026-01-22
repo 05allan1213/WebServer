@@ -137,8 +137,14 @@ void ConfigManager::unregisterUpdateCallback(const std::string &name)
 
 void ConfigManager::notifyUpdate()
 {
-    std::lock_guard<std::mutex> lock(callbackMutex_);
-    for (const auto &pair : updateCallbacks_)
+    // 拷贝回调列表后释放锁再执行，避免回调期间锁被长期占用
+    std::unordered_map<std::string, ConfigUpdateCallback> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(callbackMutex_);
+        callbacks = updateCallbacks_;
+    }
+
+    for (const auto &pair : callbacks)
     {
         try
         {

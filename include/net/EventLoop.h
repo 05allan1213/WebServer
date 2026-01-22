@@ -163,7 +163,8 @@ private:
     // 自动优雅退出相关
     static void registerSignalHandlerOnce(EventLoop *loop);
     static void signalHandler(int signo);
-    static std::atomic<EventLoop *> mainLoop_;
+    static int signalFd_;
+    static std::unique_ptr<Channel> signalChannel_;
     static std::atomic_bool signalRegistered_;
 
 private:

@@ -52,6 +52,16 @@ public:
      */
     void start() { server_.start(); }
 
+    /**
+     * @brief 更新网络配置
+     * @param config 新的网络配置对象
+     * @note 必须在 TcpServer 的 loop 线程中调用
+     */
+    void updateNetworkConfig(std::shared_ptr<NetworkConfig> config)
+    {
+        server_.updateNetworkConfig(config);
+    }
+
 private:
     /**
      * @brief 连接建立回调

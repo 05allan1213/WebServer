@@ -197,3 +197,15 @@ void TcpServer::removeConnectionInLoop(const TcpConnectionPtr &conn)
     ioLoop->queueInLoop(std::bind(&TcpConnection::connectDestroyed, conn));
     DLOG_INFO << "连接销毁任务已加入队列";
 }
+
+/**
+ * @brief 更新网络配置
+ * @param config 新的网络配置对象
+ * @note 仅影响新建连接，已有连接保持旧配置
+ */
+void TcpServer::updateNetworkConfig(std::shared_ptr<NetworkConfig> config)
+{
+    loop_->assertInLoopThread();
+    networkConfig_ = config;
+    DLOG_INFO << "[TcpServer] 网络配置已更新（仅新连接生效）";
+}

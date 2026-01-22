@@ -101,6 +101,13 @@ public:
      */
     void start();
 
+    /**
+     * @brief 更新网络配置
+     * @param config 新的网络配置对象
+     * @details 更新配置后，新连接和下次重置定时器时会使用新配置
+     */
+    void updateNetworkConfig(std::shared_ptr<NetworkConfig> config);
+
 private:
     /**
      * @brief 处理新连接

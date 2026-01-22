@@ -70,6 +70,11 @@ private:
      */
     void onHttpRequest(const HttpRequest &req, HttpResponse *resp);
 
+    /**
+     * @brief 配置更新回调，应用新配置
+     */
+    void onConfigUpdate();
+
     ConfigManager &configManager_;                 // 保存配置管理器的引用
     std::shared_ptr<NetworkConfig> networkConfig_; // 保存网络配置
 

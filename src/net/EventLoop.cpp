@@ -35,8 +35,9 @@ int createEventFd()
     return evtfd;
 }
 
-std::atomic<EventLoop *> EventLoop::mainLoop_{nullptr};
 std::atomic_bool EventLoop::signalRegistered_{false};
+int EventLoop::signalFd_ = -1;
+std::unique_ptr<Channel> EventLoop::signalChannel_ = nullptr;
 
 /**
  * @brief 构造函数
@@ -251,7 +252,39 @@ void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
 {
     if (!signalRegistered_.exchange(true))
     {
-        mainLoop_ = loop;
+        // 创建全局 signalFd 用于信号通知
+        signalFd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        if (signalFd_ < 0)
+        {
+            DLOG_FATAL << "[EventLoop] 创建 signalFd 失败: " << errno;
+            return;
+        }
+
+        // 在主 loop 中监听 signalFd，使用 unique_ptr 管理生命周期
+        // 注意：signalFd_/signalChannel_ 是静态的，会绑定到第一个调用此函数的 EventLoop
+        // 建议只在主 EventLoop 中调用 registerSignalHandlerOnce
+        signalChannel_ = std::make_unique<Channel>(loop, signalFd_);
+        signalChannel_->setReadCallback([](Timestamp)
+                                        {
+            uint64_t one = 1;
+            ssize_t n = ::read(EventLoop::signalFd_, &one, sizeof(one));
+            if (n != sizeof(one))
+            {
+                int saved_errno = errno; // 保存 errno，避免被日志函数改写
+                if (n < 0 && saved_errno != EAGAIN && saved_errno != EINTR)
+                {
+                    DLOG_ERROR << "[EventLoop] 读取 signalFd 失败: " << saved_errno;
+                }
+                return;
+            }
+            DLOG_INFO << "[EventLoop] 收到信号通知，准备退出";
+            // 通过 signalChannel_ 获取 loop 避免捕获裸指针
+            if (EventLoop::signalChannel_)
+            {
+                EventLoop::signalChannel_->ownerLoop()->quit();
+            } });
+        signalChannel_->enableReading();
+
         ::signal(SIGINT, signalHandler);
         ::signal(SIGTERM, signalHandler);
         DLOG_INFO << "[EventLoop] 已自动注册SIGINT/SIGTERM信号处理,支持优雅退出";
@@ -261,14 +294,18 @@ void EventLoop::registerSignalHandlerOnce(EventLoop *loop)
 /**
  * @brief 信号处理函数
  * @param signo 信号编号
- * @note 收到信号时优雅退出主事件循环
+ * @note 只写 eventfd，async-signal-safe
  */
 void EventLoop::signalHandler(int signo)
 {
-    if (mainLoop_)
+    (void)signo;
+    if (signalFd_ >= 0)
     {
-        DLOG_INFO << "[EventLoop] 收到信号 " << signo << ",即将优雅退出...";
-        mainLoop_.load()->quit();
+        uint64_t one = 1;
+        ssize_t n = ::write(signalFd_, &one, sizeof(one));
+        // write 可能返回 EAGAIN（缓冲区满）或被信号中断，这些都是可接受的
+        // 只要写入成功一次，loop 就会收到通知
+        (void)n;
     }
 }
 

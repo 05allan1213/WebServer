@@ -215,6 +215,12 @@ WebServer::WebServer(ConfigManager &configManager)
 
     initCallbacks();
     registerRoutes();
+
+    // 注册配置更新回调
+    configManager_.registerUpdateCallback("WebServer", [this]()
+                                          {
+        DLOG_INFO << "[WebServer] 配置已更新，准备应用新配置";
+        onConfigUpdate(); });
 }
 
 /**
@@ -222,6 +228,8 @@ WebServer::WebServer(ConfigManager &configManager)
  */
 WebServer::~WebServer()
 {
+    // 注销配置更新回调
+    configManager_.unregisterUpdateCallback("WebServer");
     DLOG_INFO << "[WebServer] WebServer析构，资源将按RAII规则自动清理。";
 }
 
@@ -824,4 +832,33 @@ void WebServer::stop()
     {
         mainLoop_->quit();
     }
+}
+
+/**
+ * @brief 配置更新回调，应用新配置
+ * @note 配置更新仅对新建连接生效，已有连接保持旧配置直到下次重置定时器
+ */
+void WebServer::onConfigUpdate()
+{
+    // 在EventLoop线程中执行配置更新
+    mainLoop_->runInLoop([this]()
+                         {
+        auto newNetworkConfig = configManager_.getNetworkConfig();
+        if (!newNetworkConfig)
+        {
+            DLOG_WARN << "[WebServer] 配置更新失败：NetworkConfig为空";
+            return;
+        }
+
+        // 更新网络配置
+        networkConfig_ = newNetworkConfig;
+
+        // 更新 TcpServer 的配置（仅影响新连接）
+        if (server_)
+        {
+            server_->updateNetworkConfig(newNetworkConfig);
+            DLOG_INFO << "[WebServer] 已应用新的网络配置（仅新连接生效），空闲超时: " << newNetworkConfig->getIdleTimeout() << "秒";
+        }
+
+        DLOG_INFO << "[WebServer] 配置热重载完成"; });
 }
