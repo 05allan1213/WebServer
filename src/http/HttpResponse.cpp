@@ -72,11 +72,13 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     {
         if (closeConnection_)
         {
-            output->append("Connection: close\r\n", 17);
+            const char *connClose = "Connection: close\r\n";
+            output->append(connClose, strlen(connClose));
         }
         else
         {
-            output->append("Connection: Keep-Alive\r\n", 21);
+            const char *connKeepAlive = "Connection: Keep-Alive\r\n";
+            output->append(connKeepAlive, strlen(connKeepAlive));
         }
     }
 
