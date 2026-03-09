@@ -50,6 +50,13 @@ static void monitorAsyncLogging(int checkInterval)
             continue;
         }
 
+        // 当前配置未要求异步文件日志时，不做异步健康检查
+        if (!logManager->expectsAsyncLogging())
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(checkInterval));
+            continue;
+        }
+
         // 检查异步日志对象是否存在
         if (!g_asyncLog)
         {
@@ -252,6 +259,7 @@ void LogManager::init(const std::string &asyncLogBasename,
         g_asyncLog->stop();
         g_asyncLog.reset();
     }
+    g_asyncOutputFunc = nullptr;
     if (g_monitorRunning)
     {
         stopMonitor();
@@ -297,6 +305,8 @@ void LogManager::init(const std::string &asyncLogBasename,
             return Level::FATAL;
         return Level::DEBUG;
     };
+
+    m_expectAsyncLogging = enableFile && enableAsync && !asyncLogBasename.empty();
 
     // --- 3. 设置默认控制台输出 ---
     LogAppenderPtr consoleAppender(new StdoutLogAppender());
@@ -373,7 +383,10 @@ void LogManager::init(const std::string &asyncLogBasename,
 
     // --- 6. 标记为已初始化并启动监控 ---
     m_initialized = true;
-    startMonitor(60);
+    if (m_expectAsyncLogging)
+    {
+        startMonitor(60);
+    }
 
     // --- 7. 注册配置更新回调 ---
     ConfigManager::getInstance().registerUpdateCallback("LogManager", [this]()
@@ -390,7 +403,7 @@ bool LogManager::checkAsyncLoggingStatus() const
     {
         return false;
     }
-    return true;
+    return m_expectAsyncLogging;
 }
 
 /**
@@ -429,9 +442,11 @@ bool LogManager::reinitializeAsyncLogging()
 
     bool enableFile = logConfig->getEnableFile();
     bool enableAsync = logConfig->getEnableAsync();
+    m_expectAsyncLogging = enableFile && enableAsync && !m_logBasename.empty();
 
     if (!enableFile)
     {
+        g_asyncOutputFunc = nullptr;
         return true; // 只保留控制台输出
     }
 

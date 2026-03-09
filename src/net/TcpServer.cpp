@@ -39,7 +39,7 @@ TcpServer::TcpServer(EventLoop *loop, const InetAddress &listenAddr, const std::
       // 将loop(baseLoop)传递给Acceptor,明确Acceptor在baseLoop中执行
       // 将监听地址(listenAddr)传递给 Acceptor,用于后续的 socket, bind, listen 操作
       // 根据 option 决定是否设置 SO_REUSEPORT 选项
-      acceptor_(new Acceptor(loop, listenAddr, option == kReusePort)),
+      acceptor_(new Acceptor(loop, listenAddr, option == kReusePort, config->isET())),
       // 此处只创建线程池对象,还未启动任何IO线程(subLoop)
       // 读取 epoll_mode 配置并传递给线程池
       threadPool_(new EventLoopThreadPool(loop, name_, config->getEpollMode())),

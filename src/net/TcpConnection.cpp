@@ -60,6 +60,7 @@ TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int so
       peerAddr_(peerAddr),
       networkConfig_(config),
       highWaterMark_(64 * 1024 * 1024), // 64M
+      isET_(config && config->isET()),
       ssl_(nullptr, &SSL_free)
 {
     // 设置 Channel 回调
@@ -94,6 +95,98 @@ TcpConnection::TcpConnection(EventLoop *loop, const std::string &nameArg, int so
 TcpConnection::~TcpConnection()
 {
     DLOG_INFO << "TcpConnection::dtor[" << name_ << "] at fd=" << channel_->fd() << " state=" << state_;
+}
+
+bool TcpConnection::isBlockedError(int err) const
+{
+    if (ssl_)
+    {
+        return err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE;
+    }
+    return err == EWOULDBLOCK || err == EAGAIN;
+}
+
+ssize_t TcpConnection::writeSocket(const void *data, size_t len, int *saveErrno)
+{
+    if (ssl_)
+    {
+        return sslWrite(data, len, saveErrno);
+    }
+
+    ssize_t n = ::write(channel_->fd(), data, len);
+    if (n < 0)
+    {
+        *saveErrno = errno;
+    }
+    return n;
+}
+
+bool TcpConnection::flushOutputBuffer()
+{
+    const size_t BACKPRESSURE_RESUME_THRESHOLD = 512 * 1024; // 512KB
+
+    while (outputBuffer_.readableBytes() > 0)
+    {
+        int saveErrno = 0;
+        ssize_t n = writeSocket(outputBuffer_.peek(), outputBuffer_.readableBytes(), &saveErrno);
+        if (n > 0)
+        {
+            // 移除已成功发送的数据
+            outputBuffer_.retrieve(n);
+
+            // 当 outputBuffer 降到阈值以下时恢复文件分块读取，提升吞吐
+            if (fileReadContinuation_ && outputBuffer_.readableBytes() < BACKPRESSURE_RESUME_THRESHOLD)
+            {
+                auto continuation = std::move(fileReadContinuation_);
+                fileReadContinuation_ = nullptr;
+                loop_->queueInLoop(continuation);
+            }
+
+            if (!isET_)
+            {
+                break;
+            }
+        }
+        else
+        {
+            if (isBlockedError(saveErrno))
+            {
+                return false;
+            }
+
+            DLOG_ERROR << "TcpConnection::flushOutputBuffer error";
+            return false;
+        }
+    }
+
+    return outputBuffer_.readableBytes() == 0;
+}
+
+bool TcpConnection::flushPendingWrite()
+{
+    if (!flushOutputBuffer())
+    {
+        channel_->enableWriting();
+        return false;
+    }
+
+    if (fileSendState_)
+    {
+        continueSendFile();
+        return !fileSendState_ && outputBuffer_.readableBytes() == 0;
+    }
+
+    channel_->disableWriting();
+    if (writeCompleteCallback_)
+    {
+        // 防御性编程,确保在下轮事件循环执行回调
+        loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
+    }
+    if (state_ == kDisconnecting) // 如果正在断开连接,则关闭连接
+    {
+        shutdownInLoop();
+    }
+    return true;
 }
 
 /**
@@ -149,48 +242,46 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
     // 当前Channel关注写事件,且发送缓冲区为空,则尝试将数据写入Socket
     if (!channel_->isWriting() && outputBuffer_.readableBytes() == 0)
     {
-        int err = 0;
-        // 如果启用了SSL，则使用SSL_write
-        if (ssl_)
+        while (remaining > 0)
         {
-            nwrote = sslWrite(data, len, &err);
-        }
-        else
-        {
-            nwrote = ::write(channel_->fd(), data, len);
-            if (nwrote < 0)
-                err = errno;
-        }
-        if (nwrote > 0) // 成功写入nwrote字节
-        {
-            // 更新剩余字节数
-            remaining = len - nwrote;
-            // 如果全部发送完,就调用写回调
-            if (remaining == 0 && writeCompleteCallback_)
+            int err = 0;
+            nwrote = writeSocket(static_cast<const char *>(data) + (len - remaining), remaining, &err);
+            if (nwrote > 0) // 成功写入nwrote字节
             {
-                loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
-            }
-        }
-        else // 写入出错
-        {
-            // 因为出错,所以并没有写入任何字节
-            nwrote = 0;
-            // 检查errno,判断错误类型
-            if ((ssl_ && (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)) ||
-                (!ssl_ && (err == EWOULDBLOCK || err == EAGAIN)))
-            {
-                // 非阻塞IO下的正常情况
-            }
-            else
-            {
-                DLOG_ERROR << "TcpConnection::sendInLoop error";
-                if (err == EPIPE || err == ECONNRESET)
+                // 更新剩余字节数
+                remaining -= nwrote;
+                if (!isET_)
                 {
-                    faultError = true;
+                    break;
                 }
+            }
+            else // 写入出错
+            {
+                // 因为出错,所以并没有写入任何字节
+                nwrote = 0;
+                if (isBlockedError(err))
+                {
+                    // 非阻塞IO下的正常情况
+                }
+                else
+                {
+                    DLOG_ERROR << "TcpConnection::sendInLoop error";
+                    if (err == EPIPE || err == ECONNRESET)
+                    {
+                        faultError = true;
+                    }
+                }
+                break;
             }
         }
     }
+
+    // 如果全部发送完,就调用写回调
+    if (!faultError && remaining == 0 && writeCompleteCallback_)
+    {
+        loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
+    }
+
     // 连接未发生错误,但要么未尝试发送,要么只发送了部分数据
     if (!faultError && remaining > 0)
     {
@@ -214,8 +305,9 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
             loop_->queueInLoop(
                 std::bind(highWaterMarkCallback_, shared_from_this(), oldlen + remaining));
         }
-        // 将未发送的数据(remaining字节,从 data+nwrote 开始)添加到 outputBuffer_末尾
-        outputBuffer_.append((char *)data + nwrote, remaining);
+        // 将未发送的数据追加到 outputBuffer_ 末尾
+        size_t sent = len - remaining;
+        outputBuffer_.append(static_cast<const char *>(data) + sent, remaining);
         if (!channel_->isWriting()) // 如果Channel未关注写事件
         {
             // 通知Poller关注该connfd的写事件
@@ -565,113 +657,167 @@ void TcpConnection::continueSendFile()
         return;
     }
 
-    ssize_t nwrote = ::sendfile(channel_->fd(), fileSendState_->fd, &fileSendState_->offset, fileSendState_->remaining);
-
-    if (nwrote < 0)
+    while (fileSendState_ && fileSendState_->remaining > 0)
     {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
+        ssize_t nwrote = ::sendfile(channel_->fd(), fileSendState_->fd, &fileSendState_->offset, fileSendState_->remaining);
+
+        if (nwrote < 0)
         {
-            // 需要等待写就绪
-            channel_->enableWriting();
-            DLOG_DEBUG << "sendfile EAGAIN, wait for writable";
-            return;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                // 需要等待写就绪
+                channel_->enableWriting();
+                DLOG_DEBUG << "sendfile EAGAIN, wait for writable";
+                return;
+            }
+            else
+            {
+                DLOG_ERROR << "sendfile error: " << strerror(errno) << ", closing connection";
+
+                // 恢复读事件（如果之前被禁用）
+                if (fileSendState_->needReenableReading && !channel_->isReading())
+                {
+                    channel_->enableReading();
+                    DLOG_DEBUG << "Re-enabled reading after sendfile error";
+                }
+
+                ::close(fileSendState_->fd);
+                fileSendState_.reset();
+                shutdown();
+                return;
+            }
         }
-        else
+
+        // 处理 sendfile 返回 0 的情况（文件可能被截断或其他异常）
+        if (nwrote == 0 && fileSendState_->remaining > 0)
         {
-            DLOG_ERROR << "sendfile error: " << strerror(errno) << ", closing connection";
+            DLOG_ERROR << "sendfile returned 0 with remaining " << fileSendState_->remaining << " bytes, closing connection";
 
             // 恢复读事件（如果之前被禁用）
             if (fileSendState_->needReenableReading && !channel_->isReading())
             {
                 channel_->enableReading();
-                DLOG_DEBUG << "Re-enabled reading after sendfile error";
+                DLOG_DEBUG << "Re-enabled reading after sendfile returned 0";
             }
 
             ::close(fileSendState_->fd);
             fileSendState_.reset();
+            channel_->disableWriting();
             shutdown();
             return;
         }
-    }
 
-    // 处理 sendfile 返回 0 的情况（文件可能被截断或其他异常）
-    if (nwrote == 0 && fileSendState_->remaining > 0)
-    {
-        DLOG_ERROR << "sendfile returned 0 with remaining " << fileSendState_->remaining << " bytes, closing connection";
+        fileSendState_->remaining -= nwrote;
+        DLOG_DEBUG << "sendfile wrote " << nwrote << " bytes, remaining " << fileSendState_->remaining;
 
-        // 恢复读事件（如果之前被禁用）
-        if (fileSendState_->needReenableReading && !channel_->isReading())
+        if (fileSendState_->remaining == 0)
         {
-            channel_->enableReading();
-            DLOG_DEBUG << "Re-enabled reading after sendfile returned 0";
+            // 文件发送完成
+            DLOG_INFO << "sendfile completed";
+            ::close(fileSendState_->fd);
+            bool closeAfterSend = fileSendState_->closeAfterSend;
+            bool needReenableReading = fileSendState_->needReenableReading;
+            auto callback = std::move(fileSendState_->completionCallback);
+            fileSendState_.reset();
+
+            // 恢复读事件（如果之前被禁用）
+            if (needReenableReading && !channel_->isReading())
+            {
+                channel_->enableReading();
+                DLOG_DEBUG << "Re-enabled reading after file send complete";
+            }
+
+            // 只有在 outputBuffer_ 为空时才 disableWriting
+            if (outputBuffer_.readableBytes() == 0)
+            {
+                channel_->disableWriting();
+            }
+
+            if (closeAfterSend)
+            {
+                shutdownInLoop();
+            }
+
+            // 调用完成回调
+            if (callback)
+            {
+                callback();
+            }
+            return;
         }
 
-        ::close(fileSendState_->fd);
-        fileSendState_.reset();
-        channel_->disableWriting();
-        shutdown();
-        return;
-    }
-
-    fileSendState_->remaining -= nwrote;
-    DLOG_DEBUG << "sendfile wrote " << nwrote << " bytes, remaining " << fileSendState_->remaining;
-
-    if (fileSendState_->remaining == 0)
-    {
-        // 文件发送完成
-        DLOG_INFO << "sendfile completed";
-        ::close(fileSendState_->fd);
-        bool closeAfterSend = fileSendState_->closeAfterSend;
-        bool needReenableReading = fileSendState_->needReenableReading;
-        auto callback = std::move(fileSendState_->completionCallback);
-        fileSendState_.reset();
-
-        // 恢复读事件（如果之前被禁用）
-        if (needReenableReading && !channel_->isReading())
+        if (!isET_)
         {
-            channel_->enableReading();
-            DLOG_DEBUG << "Re-enabled reading after file send complete";
-        }
-
-        // 只有在 outputBuffer_ 为空时才 disableWriting
-        if (outputBuffer_.readableBytes() == 0)
-        {
-            channel_->disableWriting();
-        }
-
-        if (closeAfterSend)
-        {
-            shutdownInLoop();
-        }
-
-        // 调用完成回调
-        if (callback)
-        {
-            callback();
+            break;
         }
     }
-    else
-    {
-        // 还有数据未发送，等待写就绪
-        channel_->enableWriting();
-    }
+
+    // 还有数据未发送，等待写就绪
+    channel_->enableWriting();
 }
 
 void TcpConnection::handleRead(Timestamp receiveTime)
 {
     int saveErrno = 0;
-    ssize_t n = 0;
+    ssize_t totalRead = 0;
+    bool peerClosed = false;
+    bool hasError = false;
 
     // 根据是否启用SSL选择不同的读取方式
     if (ssl_)
     {
-        n = sslRead(&saveErrno);
+        totalRead = sslRead(&saveErrno);
+        if (totalRead == 0)
+        {
+            peerClosed = true;
+        }
+        else if (totalRead < 0)
+        {
+            hasError = !isBlockedError(saveErrno);
+        }
+    }
+    else if (isET_)
+    {
+        while (true)
+        {
+            int readErrno = 0;
+            ssize_t n = inputBuffer_.readFd(channel_->fd(), &readErrno);
+            if (n > 0)
+            {
+                totalRead += n;
+            }
+            else if (n == 0)
+            {
+                peerClosed = true;
+                break;
+            }
+            else if (readErrno == EWOULDBLOCK || readErrno == EAGAIN)
+            {
+                saveErrno = readErrno;
+                break;
+            }
+            else
+            {
+                saveErrno = readErrno;
+                hasError = true;
+                break;
+            }
+        }
     }
     else
     {
-        n = inputBuffer_.readFd(channel_->fd(), &saveErrno);
+        totalRead = inputBuffer_.readFd(channel_->fd(), &saveErrno);
+        if (totalRead == 0)
+        {
+            peerClosed = true;
+        }
+        else if (totalRead < 0)
+        {
+            hasError = !isBlockedError(saveErrno);
+        }
     }
-    if (n > 0)
+
+    if (totalRead > 0)
     {
         // 收到消息,重置空闲定时器
         loop_->cancel(idleTimerId_);
@@ -700,22 +846,15 @@ void TcpConnection::handleRead(Timestamp receiveTime)
             shutdown(); // 关闭有问题的连接
         }
     }
-    else if (n == 0) // 对端关闭连接
+
+    if (peerClosed) // 对端关闭连接
     {
         handleClose();
     }
-    else // 发送错误
+    else if (hasError) // 发送错误
     {
-        if ((ssl_ && (saveErrno == SSL_ERROR_WANT_READ || saveErrno == SSL_ERROR_WANT_WRITE)) ||
-            (!ssl_ && (saveErrno == EWOULDBLOCK || saveErrno == EAGAIN)))
-        {
-            // 正常情况
-        }
-        else
-        {
-            DLOG_ERROR << "TcpConnection::handleRead error";
-            handleError();
-        }
+        DLOG_ERROR << "TcpConnection::handleRead error";
+        handleError();
     }
 }
 
@@ -726,84 +865,11 @@ void TcpConnection::handleWrite()
     // 检查写状态
     if (channel_->isWriting())
     {
-        // 优先 flush outputBuffer_，确保 header 先于文件发送
-        if (outputBuffer_.readableBytes() > 0)
+        if (!flushPendingWrite())
         {
-            int saveErrno = 0;
-            ssize_t n = 0;
-            // 根据是否启用SSL选择不同的写入方式
-            if (ssl_)
-            {
-                n = sslWrite(outputBuffer_.peek(), outputBuffer_.readableBytes(), &saveErrno);
-            }
-            else
-            {
-                n = outputBuffer_.writeFd(channel_->fd(), &saveErrno);
-            }
-            if (n > 0) // 成功写入部分或全部数据
-            {
-                // 移除已成功发送的数据
-                outputBuffer_.retrieve(n);
-
-                // 触发内部文件读取 continuation（背压恢复）
-                // 当 outputBuffer 降到阈值以下时恢复读取，提升吞吐
-                const size_t BACKPRESSURE_RESUME_THRESHOLD = 512 * 1024; // 512KB
-                if (fileReadContinuation_ && outputBuffer_.readableBytes() < BACKPRESSURE_RESUME_THRESHOLD)
-                {
-                    auto continuation = std::move(fileReadContinuation_);
-                    fileReadContinuation_ = nullptr;
-                    loop_->queueInLoop(continuation);
-                }
-
-                // outputBuffer_ 发送完毕后，检查是否需要发送文件
-                if (outputBuffer_.readableBytes() == 0)
-                {
-                    // 如果有文件待发送，开始发送文件
-                    if (fileSendState_)
-                    {
-                        continueSendFile();
-                        return;
-                    }
-
-                    // 没有文件发送，正常完成
-                    channel_->disableWriting();
-                    if (writeCompleteCallback_)
-                    {
-                        // 防御性编程,确保在下轮事件循环执行回调
-                        loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
-                    }
-                    if (state_ == kDisconnecting) // 如果正在断开连接,则关闭连接
-                    {
-                        shutdownInLoop();
-                    }
-                }
-                // outputBuffer_ 未发送完毕,继续等待下次 handleWrite
-            }
-            else // 写入失败
-            {
-                if ((ssl_ && (saveErrno == SSL_ERROR_WANT_READ || saveErrno == SSL_ERROR_WANT_WRITE)) ||
-                    (!ssl_ && (saveErrno == EWOULDBLOCK || saveErrno == EAGAIN)))
-                {
-                    // 正常情况
-                }
-                else
-                {
-                    DLOG_ERROR << "TcpConnection::handleWrite error";
-                }
-            }
             return;
         }
-
-        // outputBuffer_ 为空，检查是否有文件待发送
-        if (fileSendState_)
-        {
-            continueSendFile();
-            return;
-        }
-
-        // 既没有 buffer 数据也没有文件，不应该走到这里
-        DLOG_WARN << "handleWrite called but nothing to write";
-        channel_->disableWriting();
+        return;
     }
     else // Channel不在写状态,却调用了handleWrite,异常
     {

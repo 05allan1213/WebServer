@@ -160,6 +160,7 @@ public:
      * @param pool 连接池指针
      */
     ConnectionRAII(Connection **conn, DBConnectionPool *pool)
+        : m_conn(nullptr), m_pool(pool)
     {
         if (pool == nullptr)
         {
@@ -167,7 +168,6 @@ public:
         }
         *conn = pool->getConnection();
         m_conn = *conn;
-        m_pool = pool;
     }
 
     /**

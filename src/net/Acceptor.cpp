@@ -30,12 +30,13 @@ static int createNonblocking()
  * @param reuseport 是否启用端口复用
  * @details 初始化Acceptor对象，创建监听socket，设置socket选项，绑定地址
  */
-Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport)
+Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport, bool isET)
     : loop_(loop),
       // 创建socket文件描述符
       acceptSocket_(createNonblocking()),
       acceptChannel_(loop, acceptSocket_.fd()),
-      listenning_(false)
+      listenning_(false),
+      isET_(isET)
 {
     // 设置socket选项
     acceptSocket_.setReuseAddr(true);
@@ -77,27 +78,37 @@ void Acceptor::listen()
  */
 void Acceptor::handleRead()
 {
-    InetAddress peerAddr;
-    int connfd = acceptSocket_.accept(&peerAddr);
-    if (connfd >= 0)
+    do
     {
-        if (newConnectionCallback_) // 回调有效
+        InetAddress peerAddr;
+        int connfd = acceptSocket_.accept(&peerAddr);
+        if (connfd >= 0)
         {
-            // 调用 newConnectionCallback_(将新连接交给上层处理)
-            newConnectionCallback_(connfd, peerAddr);
+            if (newConnectionCallback_) // 回调有效
+            {
+                // 调用 newConnectionCallback_(将新连接交给上层处理)
+                newConnectionCallback_(connfd, peerAddr);
+            }
+            else // 回调无效
+            {
+                // 理论上不应发生,表示 TcpServer 未正确设置回调
+                ::close(connfd);
+            }
         }
-        else // 回调无效
+        else
         {
-            // 理论上不应发生,表示 TcpServer 未正确设置回调
-            ::close(connfd);
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                break;
+            }
+
+            DLOG_ERROR << __FILE__ << ":" << __FUNCTION__ << ":" << __LINE__ << " accept err:" << errno;
+            if (errno == EMFILE)
+            {
+                DLOG_ERROR << __FILE__ << ":" << __FUNCTION__ << ":" << __LINE__ << " sockfd reached limit!";
+            }
+            break;
         }
     }
-    else
-    {
-        DLOG_ERROR << __FILE__ << ":" << __FUNCTION__ << ":" << __LINE__ << " accept err:" << errno;
-        if (errno == EMFILE)
-        {
-            DLOG_ERROR << __FILE__ << ":" << __FUNCTION__ << ":" << __LINE__ << " sockfd reached limit!";
-        }
-    }
+    while (isET_);
 }

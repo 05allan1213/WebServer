@@ -39,7 +39,7 @@ public:
      * @param reuseport 是否启用端口复用
      * @details 创建监听socket并绑定到指定地址，初始化Channel
      */
-    Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport);
+    Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport, bool isET);
 
     /**
      * @brief 析构函数
@@ -78,4 +78,5 @@ private:
     Channel acceptChannel_;                       // 封装listen_fd的Channel对象
     NewConnectionCallback newConnectionCallback_; // 新连接到来时的回调函数
     bool listenning_;                             // 当前Acceptor是否正在监听端口
+    bool isET_;                                   // 是否使用ET模式
 };

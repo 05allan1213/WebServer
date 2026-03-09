@@ -267,6 +267,34 @@ private:
     void handleSSLHandshake();
 
     /**
+     * @brief 判断读写是否因为非阻塞条件被暂时阻塞
+     * @param err 错误码
+     * @return true表示需要等待下次事件，false表示真正错误
+     */
+    bool isBlockedError(int err) const;
+
+    /**
+     * @brief 单次写入socket
+     * @param data 数据指针
+     * @param len 数据长度
+     * @param saveErrno 保存错误码
+     * @return 成功写入字节数，失败返回-1
+     */
+    ssize_t writeSocket(const void *data, size_t len, int *saveErrno);
+
+    /**
+     * @brief 刷新输出缓冲区
+     * @return true表示输出缓冲区已清空，false表示还有待发送数据或发送出错
+     */
+    bool flushOutputBuffer();
+
+    /**
+     * @brief 尝试完成挂起的写操作
+     * @return true表示没有待发送数据，false表示仍需等待可写事件
+     */
+    bool flushPendingWrite();
+
+    /**
      * @brief SSL读取数据
      * @param saveErrno 保存错误码
      * @return 读取的字节数
@@ -302,6 +330,7 @@ private:
     CloseCallback closeCallback_;                 // 连接关闭回调（通知TcpServer）
     size_t highWaterMark_;                        // 高水位阈值，防止发送缓冲区无限增长
     TimerId idleTimerId_;                         // 空闲超时定时器ID
+    bool isET_;                                   // 是否使用ET模式
 
     // 数据缓冲区
     Buffer inputBuffer_;  // 接收缓冲区，存储从socket读取的数据

@@ -134,11 +134,12 @@ void Buffer::ensureWritableBytes(size_t len)
     {
         // 扩容
         resizeCount++;
+        size_t readable = readableBytes();
         size_t newCapacity = writerIndex_ + len;
         char *newData = new char[newCapacity];
         heapMemory += newCapacity;
 
-        std::copy(peek(), peek() + readableBytes(), newData + kCheapPrepend);
+        std::copy(peek(), peek() + readable, newData + kCheapPrepend);
 
         // 释放旧内存
         if (fromPool_)
@@ -155,7 +156,7 @@ void Buffer::ensureWritableBytes(size_t len)
         data_ = newData;
         capacity_ = newCapacity;
         readerIndex_ = kCheapPrepend;
-        writerIndex_ = readerIndex_ + readableBytes();
+        writerIndex_ = readerIndex_ + readable;
         fromPool_ = false; // 内存现在来自堆
     }
 }

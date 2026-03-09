@@ -55,10 +55,20 @@ void DBConnectionPool::init(const DBConfig &config)
         for (unsigned int i = 0; i < m_initSize; ++i)
         {
             MYSQL *conn = mysql_init(nullptr);
-            if (conn == nullptr) { /* ... */ }
-            conn = mysql_real_connect(conn, m_host.c_str(), m_user.c_str(),
-                                      m_password.c_str(), m_dbName.c_str(), m_port, nullptr, 0);
-            if (conn == nullptr) { /* ... */ }
+            if (conn == nullptr)
+            {
+                DLOG_ERROR << "[DBPool] mysql_init 失败";
+                continue;
+            }
+
+            if (mysql_real_connect(conn, m_host.c_str(), m_user.c_str(),
+                                   m_password.c_str(), m_dbName.c_str(), m_port, nullptr, 0) == nullptr)
+            {
+                DLOG_ERROR << "[DBPool] MySQL connect error: " << mysql_error(conn);
+                mysql_close(conn);
+                continue;
+            }
+
             Connection *connection = new Connection(conn);
             m_connectionQueue.push(connection);
             m_connectionCount++;
@@ -88,9 +98,8 @@ void DBConnectionPool::produceConnectionTask()
             MYSQL *conn = mysql_init(nullptr);
             if (conn)
             {
-                conn = mysql_real_connect(conn, m_host.c_str(), m_user.c_str(),
-                                          m_password.c_str(), m_dbName.c_str(), m_port, nullptr, 0);
-                if (conn)
+                if (mysql_real_connect(conn, m_host.c_str(), m_user.c_str(),
+                                       m_password.c_str(), m_dbName.c_str(), m_port, nullptr, 0))
                 {
                     Connection *connection = new Connection(conn);
                     m_connectionQueue.push(connection);
@@ -146,7 +155,15 @@ Connection *DBConnectionPool::getConnection()
         }
         else
         {
-            DLOG_ERROR << "Reconnect DB connection failed.";
+            if (connection->m_conn)
+            {
+                DLOG_ERROR << "Reconnect DB connection failed: " << mysql_error(connection->m_conn);
+                mysql_close(connection->m_conn);
+            }
+            else
+            {
+                DLOG_ERROR << "Reconnect DB connection failed: mysql_init returned nullptr";
+            }
             delete connection;
             m_connectionCount--;
             return nullptr;

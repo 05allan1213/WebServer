@@ -76,6 +76,12 @@ public:
     bool isInitialized() const { return m_initialized; }
 
     /**
+     * @brief 当前配置是否要求异步日志处于工作状态
+     * @return true表示需要监控异步日志，false表示无需监控
+     */
+    bool expectsAsyncLogging() const { return m_expectAsyncLogging; }
+
+    /**
      * @brief 设置初始化状态 (主要用于引导日志)
      * @param initialized 新的初始化状态
      */
@@ -124,4 +130,6 @@ private:
     static std::shared_ptr<LogManager> s_instance;
     // 是否是引导日志
     bool m_isBootLogger = false;
+    // 当前配置是否要求启用异步文件日志
+    bool m_expectAsyncLogging = false;
 };
