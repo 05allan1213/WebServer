@@ -1,5 +1,6 @@
 #include "base/ConfigManager.h"
 #include "base/BaseConfig.h"
+#include "base/PerfConfig.h"
 #include "log/LogConfig.h"
 #include "net/NetworkConfig.h"
 #include "db/DBConfig.h"
@@ -58,6 +59,7 @@ bool ConfigManager::loadInternal()
         auto newNetworkConfig = std::make_shared<NetworkConfig>(newRootNode["network"]);
         auto newLogConfig = std::make_shared<LogConfig>(newRootNode["log"]);
         auto newDBConfig = std::make_shared<DBConfig>(newRootNode["database"]);
+        auto newPerfConfig = std::make_shared<PerfConfig>(newRootNode["perf"]);
 
         // 使用写锁来原子地更新所有配置对象
         std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -66,6 +68,7 @@ bool ConfigManager::loadInternal()
         networkConfig_ = newNetworkConfig;
         logConfig_ = newLogConfig;
         dbConfig_ = newDBConfig;
+        perfConfig_ = newPerfConfig;
 
         return true;
     }
@@ -193,4 +196,10 @@ std::shared_ptr<DBConfig> ConfigManager::getDBConfig() const
 {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     return dbConfig_;
+}
+
+std::shared_ptr<PerfConfig> ConfigManager::getPerfConfig() const
+{
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    return perfConfig_;
 }

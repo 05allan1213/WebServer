@@ -95,6 +95,7 @@ void DBConnectionPool::produceConnectionTask()
             break;
         if (m_connectionCount < m_maxSize)
         {
+            bool connectFailed = false;
             MYSQL *conn = mysql_init(nullptr);
             if (conn)
             {
@@ -110,7 +111,20 @@ void DBConnectionPool::produceConnectionTask()
                 {
                     DLOG_ERROR << "MySQL connect error: " << mysql_error(conn);
                     mysql_close(conn);
+                    connectFailed = true;
                 }
+            }
+            else
+            {
+                DLOG_ERROR << "MySQL connect error: mysql_init returned nullptr";
+                connectFailed = true;
+            }
+
+            if (connectFailed)
+            {
+                lock.unlock();
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                continue;
             }
         }
         m_cond.notify_all();

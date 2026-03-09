@@ -48,3 +48,10 @@ jwt:
   secret: ""                # JWT签名密钥（请填写强随机字符串）
   expire_seconds: 86400     # Token有效期（秒），86400为24小时
   issuer: "webserver"       # JWT签发者标识
+
+perf:
+  memory_dataset_size: 512  # 内存模式预热数据量
+  batch_default_size: 16    # 批量写入默认条数
+  enable_db_mode: true      # 是否启用数据库模式
+  static_perf_dir: "web_static/perf"  # perf 文件样本目录
+  stats_poll_interval_ms: 1000        # 控制台轮询间隔

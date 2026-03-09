@@ -5,8 +5,10 @@
 #include "http/handlers/UserHandler.h"
 #include "http/handlers/Middleware.h"
 #include "http/handlers/DemoHandlers.h"
+#include "http/handlers/PerfHandlers.h"
 #include "http/handlers/StatsHandler.h"
 #include "base/ConfigManager.h"
+#include "base/PerfConfig.h"
 #include "base/ThreadPool.h"
 #include "net/NetworkConfig.h"
 #include "log/LogManager.h"
@@ -76,6 +78,7 @@ WebServer::WebServer(ConfigManager &configManager)
         DLOG_INFO << "[WebServer] HTTP服务已启用";
     }
 
+    initPerfHandlers(configManager_.getPerfConfig());
     initCallbacks();
     registerRoutes();
 
@@ -106,6 +109,7 @@ void WebServer::registerRoutes()
 
     // [DEMO] WebSocket路由
     router_.addWebSocket("/echo", std::make_shared<EchoWebSocketHandler>());
+    router_.addWebSocket("/ws/chat", std::make_shared<ChatWebSocketHandler>());
 
     // 全局中间件
     router_.use(loggingMiddleware);
@@ -122,6 +126,16 @@ void WebServer::registerRoutes()
 
     // 监控路由
     router_.get("/debug/stats", statsHandler);
+    router_.get("/debug/perf-stats", perfStatsHandler);
+
+    // perf 路由
+    router_.get("/perf/ping", perfPingHandler);
+    router_.get("/perf/json", perfJsonHandler);
+    router_.post("/perf/echo-json", perfEchoJsonHandler);
+    router_.get("/perf/items", perfItemsHandler);
+    router_.post("/perf/items/batch", perfBatchItemsHandler);
+    router_.get("/perf/compute", perfComputeHandler);
+    router_.all("/perf/file/:name", perfFileHandler);
 
     // 静态文件路由
     router_.all("/*", staticFileHandler);
@@ -286,6 +300,7 @@ void WebServer::onConfigUpdate()
     mainLoop_->runInLoop([this]()
                          {
         auto newNetworkConfig = configManager_.getNetworkConfig();
+        auto newPerfConfig = configManager_.getPerfConfig();
         if (!newNetworkConfig)
         {
             DLOG_WARN << "[WebServer] 配置更新失败：NetworkConfig为空";
@@ -301,6 +316,8 @@ void WebServer::onConfigUpdate()
             server_->updateNetworkConfig(newNetworkConfig);
             DLOG_INFO << "[WebServer] 已应用新的网络配置（仅新连接生效），空闲超时: " << newNetworkConfig->getIdleTimeout() << "秒";
         }
+
+        refreshPerfHandlers(newPerfConfig);
 
         DLOG_INFO << "[WebServer] 配置热重载完成"; });
 }

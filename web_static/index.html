@@ -4,29 +4,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebServer Pro | C++ 高性能网络库</title>
+    <title>WebServer Control Deck</title>
     <link rel="stylesheet" href="/style.css">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 </head>
 
 <body>
-    <div class="app-layout">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <a href="#/" class="logo">WebServer Pro</a>
+    <div class="shell-grid">
+        <aside class="rail">
+            <div class="brand-block">
+                <div class="brand-mark">WS</div>
+                <div>
+                    <p class="eyebrow">Performance Console</p>
+                    <h1>WebServer Control Deck</h1>
+                </div>
             </div>
-            <nav class="sidebar-nav">
-                <a href="#/home" data-route="/home"><i class="icon-home"></i><span>项目主页</span></a>
-                <a href="#/websocket" data-route="/websocket"><i class="icon-socket"></i><span>WebSocket 测试</span></a>
-                <a href="#/about" data-route="/about"><i class="icon-about"></i><span>关于项目</span></a>
+            <nav class="nav-stack">
+                <a href="#/dashboard" data-route="/dashboard">仪表盘</a>
+                <a href="#/api-lab" data-route="/api-lab">接口实验室</a>
+                <a href="#/scenarios" data-route="/scenarios">压测场景</a>
+                <a href="#/chat" data-route="/chat">实时通信</a>
+                <a href="#/business" data-route="/business">业务后台</a>
+                <a href="#/files" data-route="/files">文件实验区</a>
             </nav>
-            <div class="sidebar-footer" id="auth-area">
-            </div>
+            <section class="rail-panel">
+                <p class="eyebrow">Status</p>
+                <div id="rail-status" class="status-cluster"></div>
+            </section>
         </aside>
-        <main id="app-container" class="main-content">
+
+        <main class="viewport">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Developer-first runtime surface</p>
+                    <h2 id="page-title">仪表盘</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button id="refresh-all-btn" class="ghost-btn">刷新数据</button>
+                    <button id="auth-action-btn" class="solid-btn">登录</button>
+                </div>
+            </header>
+
+            <section id="app-root" class="page-host"></section>
         </main>
     </div>
-    <script src="/app.js"></script>
+
+    <script type="module" src="/app.js"></script>
 </body>
 
 </html>

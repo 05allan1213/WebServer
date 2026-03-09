@@ -22,6 +22,7 @@ HttpResponse::HttpResponse(bool close)
 void HttpResponse::appendToBuffer(Buffer *output) const
 {
     char buf[32];
+    const bool isSwitchingProtocols = statusCode_ == k101SwitchingProtocols;
     // 1. 添加状态行：HTTP/1.1 状态码 状态消息
     snprintf(buf, sizeof(buf), "HTTP/1.1 %d ", statusCode_);
     output->append(buf, strlen(buf));
@@ -40,12 +41,12 @@ void HttpResponse::appendToBuffer(Buffer *output) const
         }
     }
 
-    if (chunked_)
+    if (chunked_ && !isSwitchingProtocols)
     {
         // 分块传输编码，设置Transfer-Encoding头部
         output->append("Transfer-Encoding: chunked\r\n", 28);
     }
-    else if (!hasContentLength)
+    else if (!hasContentLength && !isSwitchingProtocols)
     {
         // 普通传输，如果没有手动设置Content-Length，则自动设置
         // 如果设置了filePath（零拷贝模式），body_应该为空，Content-Length应该已经手动设置
@@ -95,7 +96,7 @@ void HttpResponse::appendToBuffer(Buffer *output) const
     output->append("\r\n", 2);
 
     // 3. 添加消息体（HEAD请求不包含body，零拷贝模式也不包含body）
-    if (includeBody_ && (!filePath_.has_value() || filePath_->empty()))
+    if (!isSwitchingProtocols && includeBody_ && (!filePath_.has_value() || filePath_->empty()))
     {
         if (chunked_)
         {

@@ -1,5 +1,6 @@
 #include "http/handlers/Middleware.h"
 #include "http/handlers/AuthHandler.h"
+#include "http/perf/PerfMetrics.h"
 #include "log/LogManager.h"
 #include <chrono>
 
@@ -12,6 +13,7 @@ void loggingMiddleware(const HttpRequest &req, HttpResponse *resp, Next next)
 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::high_resolution_clock::now() - start);
+    PerfMetrics::instance().recordHttp(req.getPath(), resp->getStatusCode(), duration);
     DLOG_INFO << "<-- " << req.getMethodString() << " " << req.getPath()
               << " " << resp->getStatusCode() << " " << duration.count() << "us";
 }

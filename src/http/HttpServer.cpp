@@ -1,6 +1,7 @@
 #include "HttpServer.h"
 #include "net/NetworkConfig.h"
 #include "base/ThreadPool.h"
+#include "http/perf/PerfMetrics.h"
 #include <any>
 #include <algorithm>
 #include "log/Log.h"
@@ -50,12 +51,14 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
 {
     if (conn->connected())
     {
+        PerfMetrics::instance().onTcpConnectionOpened();
         DLOG_INFO << "新连接建立: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
         // 为新连接创建一个统一的SocketContext，初始状态为HTTP
         conn->setContext(std::make_shared<SocketContext>());
     }
     else
     {
+        PerfMetrics::instance().onTcpConnectionClosed();
         DLOG_INFO << "连接断开: " << conn->name() << ", peer: " << conn->peerAddress().toIpPort();
 
         if (conn->getMutableContext()->has_value())

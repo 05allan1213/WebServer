@@ -1,0 +1,9 @@
+id,name,category,score,source
+1,memory-item-1,network,86.4,memory
+2,memory-item-2,parser,82.1,memory
+3,memory-item-3,router,91.8,memory
+4,memory-item-4,storage,88.0,memory
+5,memory-item-5,frontend,79.2,memory
+6,memory-item-6,network,93.1,memory
+7,memory-item-7,parser,84.7,memory
+8,memory-item-8,router,90.5,memory

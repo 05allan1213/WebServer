@@ -17,6 +17,7 @@ class BaseConfig;
 class NetworkConfig;
 class LogConfig;
 class DBConfig;
+class PerfConfig;
 
 /**
  * @brief 配置管理器，负责加载、管理和热重载所有配置
@@ -73,6 +74,12 @@ public:
     std::shared_ptr<DBConfig> getDBConfig() const;
 
     /**
+     * @brief 获取性能平台配置对象
+     * @return PerfConfig 的共享指针
+     */
+    std::shared_ptr<PerfConfig> getPerfConfig() const;
+
+    /**
      * @brief 注册配置更新后的回调函数
      * @param name 回调的唯一名称，用于后续注销
      * @param callback 回调函数
@@ -127,6 +134,7 @@ private:
     std::shared_ptr<NetworkConfig> networkConfig_; // 网络配置
     std::shared_ptr<LogConfig> logConfig_;         // 日志配置
     std::shared_ptr<DBConfig> dbConfig_;           // 数据库配置
+    std::shared_ptr<PerfConfig> perfConfig_;       // 性能平台配置
 
     // 热重载相关
     std::atomic<bool> hotReloading_ = false; // 是否启用热重载

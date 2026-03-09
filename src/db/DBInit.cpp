@@ -44,3 +44,26 @@ void ensureUserTableSchema()
         }
     }
 }
+
+void ensurePerfTableSchema()
+{
+    Connection *conn = nullptr;
+    ConnectionRAII connRAII(&conn, DBConnectionPool::getInstance());
+    if (!conn || !conn->m_conn)
+    {
+        DLOG_WARN << "[DB] 无法获取数据库连接，跳过 perf_item 表结构检查";
+        return;
+    }
+
+    execSQL(conn->m_conn,
+            "CREATE TABLE IF NOT EXISTS `perf_item` ("
+            "  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,"
+            "  `name` VARCHAR(96) NOT NULL,"
+            "  `category` VARCHAR(48) NOT NULL,"
+            "  `score` DOUBLE NOT NULL DEFAULT 0,"
+            "  `source` VARCHAR(24) NOT NULL DEFAULT 'db',"
+            "  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+            "  PRIMARY KEY (`id`),"
+            "  KEY `idx_perf_item_category_id` (`category`, `id`)"
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+}

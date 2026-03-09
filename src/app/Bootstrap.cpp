@@ -16,5 +16,6 @@ void Bootstrap::initDatabase(ConfigManager &configManager)
     DLOG_INFO << "[Bootstrap] 数据库连接池初始化完成";
 
     ensureUserTableSchema();
+    ensurePerfTableSchema();
     DLOG_INFO << "[Bootstrap] 数据库表结构检查完成";
 }

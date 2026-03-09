@@ -24,7 +24,8 @@ int main()
 
             // 检查配置有效性
             if (!configManager.getNetworkConfig() || !configManager.getLogConfig() ||
-                !configManager.getDBConfig() || !configManager.getBaseConfig())
+                !configManager.getDBConfig() || !configManager.getBaseConfig() ||
+                !configManager.getPerfConfig())
             {
                 DLOG_FATAL << "[Main] 核心配置加载失败，服务器无法启动。";
                 // 在退出前尝试关闭已经启动的服务

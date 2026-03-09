@@ -160,6 +160,34 @@ static void BM_RealHttpGetRoot(benchmark::State &state)
     }
 }
 
+static void BM_RealHttpGetPerfPing(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/ping";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
+static void BM_RealHttpGetPerfJson(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/json";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
 // Benchmark 测试 - POST https://127.0.0.1:8443/api/login
 static void BM_RealHttpPostLogin(benchmark::State &state)
 {
@@ -176,11 +204,78 @@ static void BM_RealHttpPostLogin(benchmark::State &state)
     }
 }
 
+static void BM_RealHttpPostPerfEchoJson(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/echo-json";
+    std::string body = R"({"scene":"bench","mode":"mixed","batch":4})";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "POST", body);
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
+static void BM_RealHttpGetPerfItemsMemory(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/items?mode=memory&limit=24";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
+static void BM_RealHttpGetPerfItemsDb(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/items?mode=db&limit=16";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code == 503)
+        {
+            state.SkipWithError("数据库模式不可用");
+        }
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
+static void BM_RealHttpGetPerfFile(benchmark::State &state)
+{
+    std::string url = g_base_url + "/perf/file/bundle.txt";
+    for (auto _ : state)
+    {
+        int status_code = simple_http_request(url, "GET");
+        benchmark::DoNotOptimize(status_code);
+        if (status_code != 200)
+        {
+            state.SkipWithError(("请求失败，状态码：" + std::to_string(status_code)).c_str());
+        }
+    }
+}
+
 // --- 注册基准测试 ---
 // 将我们的测试用例注册到 benchmark 框架中。
 BENCHMARK(BM_SimpleGetRequest);
 BENCHMARK(BM_RealHttpGetRoot)->Threads(8);
+BENCHMARK(BM_RealHttpGetPerfPing)->Threads(8);
+BENCHMARK(BM_RealHttpGetPerfJson)->Threads(8);
 BENCHMARK(BM_RealHttpPostLogin)->Threads(8);
+BENCHMARK(BM_RealHttpPostPerfEchoJson)->Threads(8);
+BENCHMARK(BM_RealHttpGetPerfItemsMemory)->Threads(8);
+BENCHMARK(BM_RealHttpGetPerfItemsDb)->Threads(4);
+BENCHMARK(BM_RealHttpGetPerfFile)->Threads(4);
 
 // --- 基准测试主函数 ---
 int main(int argc, char **argv)
